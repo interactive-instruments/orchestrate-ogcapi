@@ -1,0 +1,18 @@
+logging:
+  level:
+    root: INFO
+
+spring:
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.graphql.GraphQlAutoConfiguration
+  graphql:
+    graphiql:
+      enabled: true
+
+management:
+  server:
+    port: 8081
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
