@@ -47,7 +47,7 @@ objectTypeMappings:
           - path: postcode
             combiner:
               name: concat
-              prefix: ' '
+              prefix: ', '
           - paths:
               - ligtIn/naam
               - ligtAan/ligtIn/naam
