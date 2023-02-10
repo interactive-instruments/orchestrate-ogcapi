@@ -8,6 +8,7 @@ import io.netty.handler.codec.http.HttpHeaderNames;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.dotwebstack.orchestrate.model.Attribute;
 import org.dotwebstack.orchestrate.model.ObjectType;
 import org.dotwebstack.orchestrate.model.Relation;
@@ -48,7 +49,7 @@ class OgcApiFeaturesDataRepository implements DataRepository {
     var collectionId = getCollectionId(objectRequest.getObjectType());
     var featureId = (String) objectRequest.getObjectKey().get("identificatie");
     var properties = supportsPropertySelection ?
-        "?properties=" + getPropertiesParameter(objectRequest.getSelectedProperties(), ImmutableList.of()) : "";
+        "?properties=" + getPropertiesParameter(bugfixSelectedProperties(objectRequest.getSelectedProperties()), ImmutableList.of()) : "";
     return CLIENT
         .get()
         .uri(ONE_TEMPLATE.replace("{apiLandingPage}", apiLandingPage)
@@ -61,7 +62,7 @@ class OgcApiFeaturesDataRepository implements DataRepository {
         .map(geojsonFeatureAsString -> {
           try {
             //noinspection unchecked
-            return (Map<String, Object>) getFeature(objectRequest.getSelectedProperties(),
+            return (Map<String, Object>) getFeature(bugfixSelectedProperties(objectRequest.getSelectedProperties()),
                 MAPPER.readValue(geojsonFeatureAsString, Map.class));
           } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
@@ -72,13 +73,12 @@ class OgcApiFeaturesDataRepository implements DataRepository {
   @Override
   public Flux<Map<String, Object>> find(CollectionRequest collectionRequest) {
     var collectionId = getCollectionId(collectionRequest.getObjectType());
-    // for now, no support for filter expressions
     var filterExpression = collectionRequest.getFilter();
     var filter = filterExpression != null ?
         String.format("&%s=%s", String.join(PATH_SEPARATOR, filterExpression.getPropertyPath().getSegments()),
             filterExpression.getValue()) : "";
     var properties = supportsPropertySelection ? String.format("&properties=%s",
-        getPropertiesParameter(collectionRequest.getSelectedProperties(), ImmutableList.of())) : "";
+        getPropertiesParameter(bugfixSelectedProperties(collectionRequest.getSelectedProperties()), ImmutableList.of())) : "";
     return CLIENT
         .get()
         .uri(COLLECTION_TEMPLATE.replace("{apiLandingPage}", apiLandingPage)
@@ -100,10 +100,18 @@ class OgcApiFeaturesDataRepository implements DataRepository {
 
           //noinspection unchecked
           return ((List<Map<String, Object>>) geojsonFeatureCollection.get("features")).stream()
-              .map(geojsonFeature -> getFeature(collectionRequest.getSelectedProperties(), geojsonFeature))
+              .map(geojsonFeature -> getFeature(bugfixSelectedProperties(collectionRequest.getSelectedProperties()), geojsonFeature))
               .toList();
         })
         .flatMapMany(Flux::fromIterable);
+  }
+
+  private List<SelectedProperty> bugfixSelectedProperties(List<SelectedProperty> selectedProperties) {
+    if (selectedProperties.size() > 1 && selectedProperties.get(1).getProperty().isIdentifier()) {
+      return IntStream.range(0, selectedProperties.size()).filter(i -> i != 1).mapToObj(selectedProperties::get)
+          .toList();
+    }
+    return selectedProperties;
   }
 
   private String getCollectionId(ObjectType objectType) {
