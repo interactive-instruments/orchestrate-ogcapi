@@ -1,5 +1,6 @@
 package de.ii.orchestrate.test;
 
+import java.io.InputStream;
 import java.util.Map;
 import java.util.Objects;
 import org.dotwebstack.orchestrate.model.Attribute;
@@ -16,6 +17,10 @@ import org.dotwebstack.orchestrate.model.types.ScalarTypes;
 import org.dotwebstack.orchestrate.parser.yaml.YamlModelMappingParser;
 
 final class TestFixtures {
+
+  public enum TargetModelType {
+    ADRES, CORE_LOCATION
+  }
 
   public static Model SOURCE_MODEL = Model.builder()
       .objectType(ObjectType.builder()
@@ -114,8 +119,36 @@ final class TestFixtures {
           .build())
       .build();
 
-  public static ModelMapping createModelMapping() {
-    var targetModel = Model.builder()
+  public static ModelMapping createModelMapping(TargetModelType targetModelType, InputStream mappingInputStream) {
+    Model targetModel = null;
+
+    if (targetModelType == TestFixtures.TargetModelType.ADRES) {
+      targetModel = buildAdresTargetModel();
+    } else if (targetModelType == TestFixtures.TargetModelType.CORE_LOCATION) {
+      targetModel = buildCoreLocationTargetModel();
+    }
+
+    var sourceModel = SOURCE_MODEL;
+
+    var componentRegistry = new ComponentRegistry()
+        .registerTransform(TestPredicate.builder()
+            .name("nonNull")
+            .predicate(Objects::nonNull)
+            .build());
+
+    var yamlMapper = YamlModelMappingParser.getInstance(Map.of("concat", Concat.class, "nonNull", TestPredicate.class),
+        componentRegistry);
+
+    var modelMapping = yamlMapper.parse(mappingInputStream);
+
+    return modelMapping.toBuilder()
+        .targetModel(targetModel)
+        .sourceModel("bag", sourceModel)
+        .build();
+  }
+
+  private static Model buildAdresTargetModel() {
+    return Model.builder()
         .objectType(ObjectType.builder()
             .name("Adres")
             .property(Attribute.builder()
@@ -165,24 +198,74 @@ final class TestFixtures {
                 .build())
             .build())
         .build();
+  }
 
-    var sourceModel = SOURCE_MODEL;
-
-    var componentRegistry = new ComponentRegistry()
-        .registerTransform(TestPredicate.builder()
-            .name("nonNull")
-            .predicate(Objects::nonNull)
-            .build());
-
-    var yamlMapper = YamlModelMappingParser.getInstance(Map.of("concat", Concat.class, "nonNull", TestPredicate.class),
-        componentRegistry);
-    var inputStream = TestFixtures.class.getResourceAsStream("/config/adresmapping.yaml");
-
-    var modelMapping = yamlMapper.parse(inputStream);
-
-    return modelMapping.toBuilder()
-        .targetModel(targetModel)
-        .sourceModel("bag", sourceModel)
+  private static Model buildCoreLocationTargetModel() {
+    return Model.builder()
+        .objectType(ObjectType.builder()
+            .name("Address")
+            .property(Attribute.builder()
+                .name("_id")
+                .type(ScalarTypes.STRING)
+                .cardinality(Cardinality.REQUIRED)
+                .build())
+//            .property(Attribute.builder()
+//                .name("addressArea")
+//                .type(ScalarTypes.STRING)
+//                .cardinality(Cardinality.MULTI)
+//                .build())
+            .property(Attribute.builder()
+                .name("addressID")
+                .type(ScalarTypes.STRING)
+                .cardinality(Cardinality.OPTIONAL)
+                .identifier(true)
+                .build())
+//            .property(Attribute.builder()
+//                .name("adminUnitL1")
+//                .type(ScalarTypes.STRING)
+//                .cardinality(Cardinality.MULTI)
+//                .build())
+//            .property(Attribute.builder()
+//                .name("adminUnitL2")
+//                .type(ScalarTypes.STRING)
+//                .cardinality(Cardinality.MULTI)
+//                .build())
+            .property(Attribute.builder()
+                .name("fullAddress")
+                .type(ScalarTypes.STRING)
+                .cardinality(Cardinality.OPTIONAL)
+                .build())
+            .property(Attribute.builder()
+                .name("locatorDesignator")
+                .type(ScalarTypes.STRING)
+                .cardinality(Cardinality.OPTIONAL)
+                .build())
+//            .property(Attribute.builder()
+//                .name("locatorName")
+//                .type(ScalarTypes.STRING)
+//                .cardinality(Cardinality.MULTI)
+//                .build())
+//            .property(Attribute.builder()
+//                .name("poBox")
+//                .type(ScalarTypes.STRING)
+//                .cardinality(Cardinality.MULTI)
+//                .build())
+            .property(Attribute.builder()
+                .name("postCode")
+                .type(ScalarTypes.STRING)
+                .cardinality(Cardinality.OPTIONAL)
+                .build())
+            .property(Attribute.builder()
+                .name("postName")
+                .type(ScalarTypes.STRING)
+                .cardinality(Cardinality.OPTIONAL)
+                .build())
+            .property(Attribute.builder()
+                .name("thoroughfare")
+                .type(ScalarTypes.STRING)
+                .cardinality(Cardinality.OPTIONAL)
+                .build())
+            .build())
         .build();
   }
 }

@@ -16,3 +16,10 @@ management:
     web:
       exposure:
         include: health,info,metrics,prometheus
+
+orchestrate:
+  gateway:
+    targetModel: adres
+    mapping: /config/adresmapping.yaml
+#    targetModel: coreLocation
+#    mapping: /config/coreLocationMapping.yaml

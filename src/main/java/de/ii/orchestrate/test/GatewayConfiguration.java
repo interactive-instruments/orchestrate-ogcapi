@@ -17,18 +17,25 @@ import org.springframework.graphql.execution.GraphQlSource;
 @EnableConfigurationProperties(GraphQlProperties.class)
 public class GatewayConfiguration {
 
+  private final GatewayProperties gatewayProperties;
+
+  public GatewayConfiguration(GatewayProperties gatewayProperties) {
+    this.gatewayProperties = gatewayProperties;
+  }
+
   @Bean
   public GraphQlSource graphQlSource() {
     var sourceConfiguration = OgcApiFeaturesConfiguration.builder()
         .model(TestFixtures.SOURCE_MODEL)
-        // .apiLandingPage("http://localhost:8080/rest/services/bag")
+        // .apiLandingPage("http://localhost:8080/rest/services/bag")x^
         .apiLandingPage("https://wau.ldproxy.net/bag")
         .limit(10)
         .supportsPropertySelection(true)
         .build();
 
     var orchestration = Orchestration.builder()
-        .modelMapping(TestFixtures.createModelMapping())
+        .modelMapping(TestFixtures.createModelMapping(gatewayProperties.getTargetModel(),
+            GatewayConfiguration.class.getResourceAsStream(gatewayProperties.getMapping())))
         .source("bag", new OgcApiFeaturesSource(sourceConfiguration))
         .build();
 
