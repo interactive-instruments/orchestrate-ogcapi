@@ -10,8 +10,10 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.dotwebstack.orchestrate.model.Attribute;
+import org.dotwebstack.orchestrate.model.Model;
 import org.dotwebstack.orchestrate.model.ObjectType;
 import org.dotwebstack.orchestrate.model.Relation;
+import org.dotwebstack.orchestrate.source.BatchRequest;
 import org.dotwebstack.orchestrate.source.CollectionRequest;
 import org.dotwebstack.orchestrate.source.DataRepository;
 import org.dotwebstack.orchestrate.source.ObjectRequest;
@@ -37,11 +39,18 @@ class OgcApiFeaturesDataRepository implements DataRepository {
   private final String apiLandingPage;
   private final int limit;
   private final boolean supportsPropertySelection;
+  private final Model model;
 
   public OgcApiFeaturesDataRepository(OgcApiFeaturesConfiguration configuration) {
     this.apiLandingPage = configuration.getApiLandingPage();
     this.limit = configuration.getLimit();
     this.supportsPropertySelection = configuration.isSupportsPropertySelection();
+    this.model = configuration.getModel();
+  }
+
+  @Override
+  public boolean supportsBatchLoading(ObjectType objectType) {
+    return true;
   }
 
   @Override
@@ -101,6 +110,42 @@ class OgcApiFeaturesDataRepository implements DataRepository {
           //noinspection unchecked
           return ((List<Map<String, Object>>) geojsonFeatureCollection.get("features")).stream()
               .map(geojsonFeature -> getFeature(bugfixSelectedProperties(collectionRequest.getSelectedProperties()), geojsonFeature))
+              .toList();
+        })
+        .flatMapMany(Flux::fromIterable);
+  }
+
+  @Override
+  public Flux<Map<String, Object>> findBatch(BatchRequest batchRequest) {
+    var collectionId = getCollectionId(batchRequest.getObjectType());
+    var properties = supportsPropertySelection ? String.format("&properties=%s",
+        getPropertiesParameter(bugfixSelectedProperties(batchRequest.getSelectedProperties()), ImmutableList.of())) : "";
+    var objectKeys = batchRequest.getObjectKeys().stream().map(id -> (String) id.get("identificatie")).toList();
+    var filter =
+        String.format("&filter=%s%%20in%%20['%s']", "identificatie", String.join("', '", objectKeys));
+
+    return CLIENT
+        .get()
+        .uri(COLLECTION_TEMPLATE.replace("{apiLandingPage}", apiLandingPage)
+            .replace("{collectionId}", collectionId)
+            .replace("{limit}", String.valueOf(objectKeys.size()))
+            + filter
+            + properties)
+        .responseContent()
+        .aggregate()
+        .asString()
+        .map(geojsonFeatureCollectionAsString -> {
+          Map<String, Object> geojsonFeatureCollection;
+          try {
+            //noinspection unchecked
+            geojsonFeatureCollection = MAPPER.readValue(geojsonFeatureCollectionAsString, Map.class);
+          } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+          }
+
+          //noinspection unchecked
+          return ((List<Map<String, Object>>) geojsonFeatureCollection.get("features")).stream()
+              .map(geojsonFeature -> getFeature(bugfixSelectedProperties(batchRequest.getSelectedProperties()), geojsonFeature))
               .toList();
         })
         .flatMapMany(Flux::fromIterable);
