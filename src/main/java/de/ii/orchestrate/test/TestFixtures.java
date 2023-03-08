@@ -9,10 +9,11 @@ import org.dotwebstack.orchestrate.model.ComponentRegistry;
 import org.dotwebstack.orchestrate.model.Model;
 import org.dotwebstack.orchestrate.model.ModelMapping;
 import org.dotwebstack.orchestrate.model.ObjectType;
+import org.dotwebstack.orchestrate.model.ObjectTypeRef;
 import org.dotwebstack.orchestrate.model.Relation;
 import org.dotwebstack.orchestrate.model.combiners.Concat;
+import org.dotwebstack.orchestrate.model.transforms.FunctionTransform;
 import org.dotwebstack.orchestrate.model.transforms.TestPredicate;
-import org.dotwebstack.orchestrate.model.types.ObjectTypeRef;
 import org.dotwebstack.orchestrate.model.types.ScalarTypes;
 import org.dotwebstack.orchestrate.parser.yaml.YamlModelMappingParser;
 
@@ -22,7 +23,31 @@ final class TestFixtures {
     ADRES, CORE_LOCATION
   }
 
-  public static Model SOURCE_MODEL = Model.builder()
+  public static Model SOURCE_MODEL_BAG = Model.builder()
+      .objectType(ObjectType.builder()
+          .name("pand")
+          .property(Attribute.builder()
+              .name("identificatie")
+              .type(ScalarTypes.STRING)
+              .cardinality(Cardinality.REQUIRED)
+              .identifier(true)
+              .build())
+          .property(Attribute.builder()
+              .name("bouwjaar")
+              .type(ScalarTypes.STRING)
+              .cardinality(Cardinality.REQUIRED)
+              .build())
+          .property(Attribute.builder()
+              .name("gebruiksdoel")
+              .type(ScalarTypes.STRING)
+              .cardinality(Cardinality.REQUIRED)
+              .build())
+          .property(Attribute.builder()
+              .name("status")
+              .type(ScalarTypes.STRING)
+              .cardinality(Cardinality.REQUIRED)
+              .build())
+          .build())
       .objectType(ObjectType.builder()
           .name("nummeraanduidingen")
           .property(Attribute.builder()
@@ -119,7 +144,102 @@ final class TestFixtures {
           .build())
       .build();
 
-  public static ModelMapping createModelMapping(TargetModelType targetModelType, InputStream mappingInputStream) {
+  public static Model SOURCE_MODEL_BGT = Model.builder()
+      .objectType(ObjectType.builder()
+          .name("Pand")
+          .property(Attribute.builder()
+              .name("identificatie")
+              .type(ScalarTypes.STRING)
+              .cardinality(Cardinality.REQUIRED)
+              .identifier(true)
+              .build())
+          .property(Relation.builder()
+              .name("identificatieBAGPND")
+              .target(ObjectTypeRef.forType("bag", "pand"))
+              .cardinality(Cardinality.OPTIONAL)
+              .build())
+          .property(Attribute.builder()
+              .name("bronhouder")
+              .type(ScalarTypes.STRING)
+              .cardinality(Cardinality.REQUIRED)
+              .build())
+          .property(Attribute.builder()
+              .name("bgt-status")
+              .type(ScalarTypes.STRING)
+              .cardinality(Cardinality.REQUIRED)
+              .build())
+          .property(Attribute.builder()
+              .name("plus-status")
+              .type(ScalarTypes.STRING)
+              .cardinality(Cardinality.REQUIRED)
+              .build())
+          .build())
+      .objectType(ObjectType.builder()
+          .name("OverigBouwwerk")
+          .property(Attribute.builder()
+              .name("identificatie")
+              .type(ScalarTypes.STRING)
+              .cardinality(Cardinality.REQUIRED)
+              .identifier(true)
+              .build())
+          .property(Attribute.builder()
+              .name("bronhouder")
+              .type(ScalarTypes.STRING)
+              .cardinality(Cardinality.REQUIRED)
+              .build())
+          .property(Attribute.builder()
+              .name("bgt-type")
+              .type(ScalarTypes.STRING)
+              .cardinality(Cardinality.OPTIONAL)
+              .build())
+          .property(Attribute.builder()
+              .name("bgt-status")
+              .type(ScalarTypes.STRING)
+              .cardinality(Cardinality.OPTIONAL)
+              .build())
+          .property(Attribute.builder()
+              .name("plus-type")
+              .type(ScalarTypes.STRING)
+              .cardinality(Cardinality.OPTIONAL)
+              .build())
+          .property(Attribute.builder()
+              .name("plus-status")
+              .type(ScalarTypes.STRING)
+              .cardinality(Cardinality.OPTIONAL)
+              .build())
+          .build())
+      .objectType(ObjectType.builder()
+          .name("GebouwInstallatie")
+          .property(Attribute.builder()
+              .name("identificatie")
+              .type(ScalarTypes.STRING)
+              .cardinality(Cardinality.REQUIRED)
+              .identifier(true)
+              .build())
+          .property(Attribute.builder()
+              .name("bronhouder")
+              .type(ScalarTypes.STRING)
+              .cardinality(Cardinality.REQUIRED)
+              .build())
+          .property(Attribute.builder()
+              .name("bgt-type")
+              .type(ScalarTypes.STRING)
+              .cardinality(Cardinality.OPTIONAL)
+              .build())
+          .property(Attribute.builder()
+              .name("bgt-status")
+              .type(ScalarTypes.STRING)
+              .cardinality(Cardinality.OPTIONAL)
+              .build())
+          .property(Attribute.builder()
+              .name("plus-type")
+              .type(ScalarTypes.STRING)
+              .cardinality(Cardinality.OPTIONAL)
+              .build())
+          .build())
+      .build();
+
+  public static ModelMapping createModelMapping(TestFixtures.TargetModelType targetModelType, InputStream mappingInputStream) {
     Model targetModel = null;
 
     if (targetModelType == TestFixtures.TargetModelType.ADRES) {
@@ -128,12 +248,14 @@ final class TestFixtures {
       targetModel = buildCoreLocationTargetModel();
     }
 
-    var sourceModel = SOURCE_MODEL;
-
     var componentRegistry = new ComponentRegistry()
         .registerTransform(TestPredicate.builder()
             .name("nonNull")
             .predicate(Objects::nonNull)
+            .build())
+        .registerTransform(FunctionTransform.builder()
+            .name("toString")
+            .function(Objects::toString)
             .build());
 
     var yamlMapper = YamlModelMappingParser.getInstance(Map.of("concat", Concat.class, "nonNull", TestPredicate.class),
@@ -143,7 +265,8 @@ final class TestFixtures {
 
     return modelMapping.toBuilder()
         .targetModel(targetModel)
-        .sourceModel("bag", sourceModel)
+        .sourceModel("bag", SOURCE_MODEL_BAG)
+        .sourceModel("bgt", SOURCE_MODEL_BGT)
         .build();
   }
 
@@ -195,6 +318,25 @@ final class TestFixtures {
                 .name("omschrijving")
                 .type(ScalarTypes.STRING)
                 .cardinality(Cardinality.REQUIRED)
+                .build())
+            .build())
+        .objectType(ObjectType.builder()
+            .name("Gebouw")
+            .property(Attribute.builder()
+                .name("identificatie")
+                .type(ScalarTypes.STRING)
+                .cardinality(Cardinality.REQUIRED)
+                .identifier(true)
+                .build())
+            .property(Attribute.builder()
+                .name("bouwjaar")
+                .type(ScalarTypes.STRING)
+                .cardinality(Cardinality.OPTIONAL)
+                .build())
+            .property(Attribute.builder()
+                .name("bgtStatus")
+                .type(ScalarTypes.STRING)
+                .cardinality(Cardinality.OPTIONAL)
                 .build())
             .build())
         .build();

@@ -54,3 +54,15 @@ objectTypeMappings:
             combiner:
               name: concat
               prefix: ' '
+  Gebouw:
+    sourceRoot: bgt:Pand
+    propertyMappings:
+      identificatie:
+        pathMapping:
+          path: identificatie
+      bouwjaar:
+        pathMapping:
+          path: identificatieBAGPND/bouwjaar
+      bgtStatus:
+        pathMapping:
+          path: "bgt-status"

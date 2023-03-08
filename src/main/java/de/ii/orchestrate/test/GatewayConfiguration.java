@@ -25,10 +25,18 @@ public class GatewayConfiguration {
 
   @Bean
   public GraphQlSource graphQlSource() {
-    var sourceConfiguration = OgcApiFeaturesConfiguration.builder()
-        .model(TestFixtures.SOURCE_MODEL)
+    var sourceConfigurationBag = OgcApiFeaturesConfiguration.builder()
+        .model(TestFixtures.SOURCE_MODEL_BAG)
         // .apiLandingPage("http://localhost:8080/rest/services/bag")x^
         .apiLandingPage("https://wau.ldproxy.net/bag")
+        .limit(10)
+        .supportsPropertySelection(true)
+        .build();
+
+    var sourceConfigurationBgt = OgcApiFeaturesConfiguration.builder()
+        .model(TestFixtures.SOURCE_MODEL_BGT)
+        // .apiLandingPage("http://localhost:8080/rest/services/bgt")x^
+        .apiLandingPage("https://wau.ldproxy.net/bgt")
         .limit(10)
         .supportsPropertySelection(true)
         .build();
@@ -36,7 +44,8 @@ public class GatewayConfiguration {
     var orchestration = Orchestration.builder()
         .modelMapping(TestFixtures.createModelMapping(gatewayProperties.getTargetModel(),
             GatewayConfiguration.class.getResourceAsStream(gatewayProperties.getMapping())))
-        .source("bag", new OgcApiFeaturesSource(sourceConfiguration))
+        .source("bag", new OgcApiFeaturesSource(sourceConfigurationBag))
+        .source("bgt", new OgcApiFeaturesSource(sourceConfigurationBgt))
         .build();
 
     var graphQL = GraphQL.newGraphQL(SchemaFactory.create(orchestration)).build();

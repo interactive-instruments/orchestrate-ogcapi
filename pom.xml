@@ -17,6 +17,26 @@
         <lombok.version>1.18.26</lombok.version>
     </properties>
 
+    <profiles>
+        <profile>
+            <id>macos-apple-silicon</id>
+            <activation>
+                <os>
+                    <family>mac</family>
+                    <arch>aarch64</arch>
+                </os>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>io.netty</groupId>
+                    <artifactId>netty-resolver-dns-native-macos</artifactId>
+                    <version>4.1.89.Final</version>
+                    <classifier>osx-aarch_64</classifier>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
+
     <dependencies>
         <dependency>
             <groupId>org.dotwebstack.orchestrate</groupId>

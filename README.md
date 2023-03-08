@@ -10,8 +10,8 @@ The current implementation depends on certain characteristics that the OGC Web A
 
 * The OGC Web API must support the OGC API Features Core conformance class.
 * The OGC Web API must support GeoJSON as a feature encoding.
-* The source model must be defined with a single attribute per object type that has `identifier: true`.
 * The name of the object type in the source model must be the `collectionId` path parameter of the collection in the OGC Web API.
+* The source model must be defined with a single attribute per object type that has `identifier: true`.
 * This attribute must be the `featureId` path parameter of the feature in the OGC Web API.
 * For an `ObjectTypeRef`property in the source model, the value of property in the GeoJSON encoding must be an object with a member with the name of the identifier attribute as the key and the identifier as the value.
 * To support the filter in the collection request of the orchestration engine, the API must support a [filtering query parameter](http://docs.opengeospatial.org/is/17-069r4/17-069r4.html#_parameters_for_filtering_on_feature_properties) that has the same name as the property path of the filter with "/" replaced by ".".
