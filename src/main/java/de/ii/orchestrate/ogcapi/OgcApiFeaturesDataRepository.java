@@ -58,7 +58,7 @@ class OgcApiFeaturesDataRepository implements DataRepository {
     var collectionId = getCollectionId(objectRequest.getObjectType());
     var featureId = (String) objectRequest.getObjectKey().get("identificatie");
     var properties = supportsPropertySelection ?
-        "?properties=" + getPropertiesParameter(bugfixSelectedProperties(objectRequest.getSelectedProperties()), ImmutableList.of()) : "";
+        "?properties=" + getPropertiesParameter(objectRequest.getSelectedProperties(), ImmutableList.of()) : "";
     return CLIENT
         .get()
         .uri(ONE_TEMPLATE.replace("{apiLandingPage}", apiLandingPage)
@@ -71,7 +71,7 @@ class OgcApiFeaturesDataRepository implements DataRepository {
         .map(geojsonFeatureAsString -> {
           try {
             //noinspection unchecked
-            return (Map<String, Object>) getFeature(bugfixSelectedProperties(objectRequest.getSelectedProperties()),
+            return (Map<String, Object>) getFeature(objectRequest.getSelectedProperties(),
                 MAPPER.readValue(geojsonFeatureAsString, Map.class));
           } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
@@ -87,7 +87,7 @@ class OgcApiFeaturesDataRepository implements DataRepository {
         String.format("&%s=%s", String.join(PATH_SEPARATOR, filterExpression.getPropertyPath().getSegments()),
             filterExpression.getValue()) : "";
     var properties = supportsPropertySelection ? String.format("&properties=%s",
-        getPropertiesParameter(bugfixSelectedProperties(collectionRequest.getSelectedProperties()), ImmutableList.of())) : "";
+        getPropertiesParameter(collectionRequest.getSelectedProperties(), ImmutableList.of())) : "";
     return CLIENT
         .get()
         .uri(COLLECTION_TEMPLATE.replace("{apiLandingPage}", apiLandingPage)
@@ -109,7 +109,7 @@ class OgcApiFeaturesDataRepository implements DataRepository {
 
           //noinspection unchecked
           return ((List<Map<String, Object>>) geojsonFeatureCollection.get("features")).stream()
-              .map(geojsonFeature -> getFeature(bugfixSelectedProperties(collectionRequest.getSelectedProperties()), geojsonFeature))
+              .map(geojsonFeature -> getFeature(collectionRequest.getSelectedProperties(), geojsonFeature))
               .toList();
         })
         .flatMapMany(Flux::fromIterable);
@@ -119,7 +119,7 @@ class OgcApiFeaturesDataRepository implements DataRepository {
   public Flux<Map<String, Object>> findBatch(BatchRequest batchRequest) {
     var collectionId = getCollectionId(batchRequest.getObjectType());
     var properties = supportsPropertySelection ? String.format("&properties=%s",
-        getPropertiesParameter(bugfixSelectedProperties(batchRequest.getSelectedProperties()), ImmutableList.of())) : "";
+        getPropertiesParameter(batchRequest.getSelectedProperties(), ImmutableList.of())) : "";
     var objectKeys = batchRequest.getObjectKeys().stream().map(id -> (String) id.get("identificatie")).toList();
     var filter =
         String.format("&filter=%s%%20in%%20['%s']", "identificatie", String.join("', '", objectKeys));
@@ -145,18 +145,10 @@ class OgcApiFeaturesDataRepository implements DataRepository {
 
           //noinspection unchecked
           return ((List<Map<String, Object>>) geojsonFeatureCollection.get("features")).stream()
-              .map(geojsonFeature -> getFeature(bugfixSelectedProperties(batchRequest.getSelectedProperties()), geojsonFeature))
+              .map(geojsonFeature -> getFeature(batchRequest.getSelectedProperties(), geojsonFeature))
               .toList();
         })
         .flatMapMany(Flux::fromIterable);
-  }
-
-  private List<SelectedProperty> bugfixSelectedProperties(List<SelectedProperty> selectedProperties) {
-    if (selectedProperties.size() > 1 && selectedProperties.get(1).getProperty().isIdentifier()) {
-      return IntStream.range(0, selectedProperties.size()).filter(i -> i != 1).mapToObj(selectedProperties::get)
-          .toList();
-    }
-    return selectedProperties;
   }
 
   private String getCollectionId(ObjectType objectType) {
