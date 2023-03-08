@@ -7,8 +7,8 @@ import graphql.com.google.common.collect.ImmutableMap;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import org.dotwebstack.orchestrate.model.Attribute;
 import org.dotwebstack.orchestrate.model.Model;
 import org.dotwebstack.orchestrate.model.ObjectType;
@@ -18,6 +18,7 @@ import org.dotwebstack.orchestrate.source.CollectionRequest;
 import org.dotwebstack.orchestrate.source.DataRepository;
 import org.dotwebstack.orchestrate.source.ObjectRequest;
 import org.dotwebstack.orchestrate.source.SelectedProperty;
+import org.dotwebstack.orchestrate.source.SourceException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
@@ -56,7 +57,8 @@ class OgcApiFeaturesDataRepository implements DataRepository {
   @Override
   public Mono<Map<String, Object>> findOne(ObjectRequest objectRequest) {
     var collectionId = getCollectionId(objectRequest.getObjectType());
-    var featureId = (String) objectRequest.getObjectKey().get("identificatie");
+    var idProperty = getIdentityProperty(model.getObjectType(collectionId));
+    var featureId = (String) objectRequest.getObjectKey().get(idProperty);
     var properties = supportsPropertySelection ?
         "?properties=" + getPropertiesParameter(objectRequest.getSelectedProperties(), ImmutableList.of()) : "";
     return CLIENT
@@ -120,9 +122,11 @@ class OgcApiFeaturesDataRepository implements DataRepository {
     var collectionId = getCollectionId(batchRequest.getObjectType());
     var properties = supportsPropertySelection ? String.format("&properties=%s",
         getPropertiesParameter(batchRequest.getSelectedProperties(), ImmutableList.of())) : "";
-    var objectKeys = batchRequest.getObjectKeys().stream().map(id -> (String) id.get("identificatie")).toList();
+    var idProperty = getIdentityProperty(model.getObjectType(collectionId));
+    var objectKeys =
+        batchRequest.getObjectKeys().stream().map(id -> (String) id.get(idProperty)).filter(Objects::nonNull).toList();
     var filter =
-        String.format("&filter=%s%%20in%%20['%s']", "identificatie", String.join("', '", objectKeys));
+        String.format("&filter=%s%%20in%%20['%s']", idProperty, String.join("', '", objectKeys));
 
     return CLIENT
         .get()
@@ -153,6 +157,16 @@ class OgcApiFeaturesDataRepository implements DataRepository {
 
   private String getCollectionId(ObjectType objectType) {
     return objectType.getName();
+  }
+
+  private String getIdentityProperty(ObjectType objectType) {
+    if (objectType.getIdentityProperties().size() != 1) {
+      throw new SourceException(
+          String.format("Source models using an OGC Web API must have exactly one identity property. Found: %s.",
+              objectType.getIdentityProperties().stream().map(Object::toString).collect(Collectors.joining(", "))));
+    }
+
+    return objectType.getIdentityProperties().get(0).getName();
   }
 
   private String getPropertiesParameter(List<SelectedProperty> selectedProperties, List<String> parentPath) {
