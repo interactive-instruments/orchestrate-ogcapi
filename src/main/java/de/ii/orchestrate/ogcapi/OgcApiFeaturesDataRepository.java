@@ -127,7 +127,7 @@ class OgcApiFeaturesDataRepository implements DataRepository {
     var objectKeys =
         batchRequest.getObjectKeys().stream().map(id -> (String) id.get(idProperty)).filter(Objects::nonNull).toList();
     var filter = supportsCql2InOperator ?
-        String.format("&filter=%s%%20in%%20['%s']", idProperty, String.join("', '", objectKeys)) :
+        String.format("&filter=%s%%20in%%20('%s')", idProperty, String.join("','", objectKeys)) :
         String.format("&filter=%s", String.join("%%20OR%%20",
             objectKeys.stream().map(key -> String.format("%s='%s'", idProperty, key)).toList()));
     var uri = COLLECTION_TEMPLATE.replace("{apiLandingPage}", apiLandingPage).replace("{collectionId}", collectionId)
