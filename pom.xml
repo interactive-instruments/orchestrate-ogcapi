@@ -54,6 +54,11 @@
             <version>${orchestrate.version}</version>
         </dependency>
         <dependency>
+            <groupId>org.dotwebstack.orchestrate</groupId>
+            <artifactId>orchestrate-ext-spatial</artifactId>
+            <version>${orchestrate.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <version>${lombok.version}</version>

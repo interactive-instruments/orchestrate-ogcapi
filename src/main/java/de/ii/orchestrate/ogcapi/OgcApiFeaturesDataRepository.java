@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.dotwebstack.orchestrate.ext.spatial.GeometryType;
 import org.dotwebstack.orchestrate.model.Attribute;
 import org.dotwebstack.orchestrate.model.Model;
 import org.dotwebstack.orchestrate.model.ObjectType;
@@ -41,6 +42,10 @@ class OgcApiFeaturesDataRepository implements DataRepository {
   public static final int MAX_URI_LENGTH = 8_000;
   public static final String AD_HOC_QUERY_TEMPLATE = "{\"collections\": [\"{%s}\"], " +
       "\"filter\": { \"op\": \"in\", \"args\": [ { \"property\": \"%s\" }, [ \"%s\" ] ] }%s}";
+  public static final String PROPERTIES = "properties";
+  public static final String GEOMETRY = "geometry";
+  public static final String ID = "id";
+  public static final String FEATURES = "features";
 
   private final String apiLandingPage;
   private final int limit;
@@ -68,10 +73,11 @@ class OgcApiFeaturesDataRepository implements DataRepository {
   @Override
   public Mono<Map<String, Object>> findOne(ObjectRequest objectRequest) {
     var collectionId = getCollectionId(objectRequest.getObjectType());
-    var idProperty = getIdentityProperty(model.getObjectType(collectionId));
+    var objectType = model.getObjectType(collectionId);
+    var idProperty = getIdentityProperty(objectType);
     var featureId = (String) objectRequest.getObjectKey().get(idProperty);
-    var properties = supportsPropertySelection ?
-        "?properties=" + getPropertiesParameterString(objectRequest.getSelectedProperties(), ImmutableList.of()) : "";
+    var properties = supportsPropertySelection ? "?properties=" +
+        getPropertiesParameterString(objectType, objectRequest.getSelectedProperties(), ImmutableList.of()) : "";
     return CLIENT.get().uri(
             ONE_TEMPLATE.replace("{apiLandingPage}", apiLandingPage).replace("{collectionId}", collectionId)
                 .replace("{featureId}", featureId) + properties).responseContent().aggregate().asString()
@@ -89,12 +95,13 @@ class OgcApiFeaturesDataRepository implements DataRepository {
   @Override
   public Flux<Map<String, Object>> find(CollectionRequest collectionRequest) {
     var collectionId = getCollectionId(collectionRequest.getObjectType());
+    var objectType = model.getObjectType(collectionId);
     var filterExpression = collectionRequest.getFilter();
     var filter = filterExpression != null ?
         String.format("&%s=%s", String.join(PATH_SEPARATOR, filterExpression.getPropertyPath().getSegments()),
             filterExpression.getValue()) : "";
     var properties = supportsPropertySelection ? String.format("&properties=%s",
-        getPropertiesParameterString(collectionRequest.getSelectedProperties(), ImmutableList.of())) : "";
+        getPropertiesParameterString(objectType, collectionRequest.getSelectedProperties(), ImmutableList.of())) : "";
     return CLIENT.get().uri(
             COLLECTION_TEMPLATE.replace("{apiLandingPage}", apiLandingPage).replace("{collectionId}", collectionId)
                 .replace("{limit}", String.valueOf(limit)) + filter + properties).responseContent().aggregate().asString()
@@ -108,7 +115,7 @@ class OgcApiFeaturesDataRepository implements DataRepository {
           }
 
           //noinspection unchecked
-          return ((List<Map<String, Object>>) geojsonFeatureCollection.get("features")).stream()
+          return ((List<Map<String, Object>>) geojsonFeatureCollection.get(FEATURES)).stream()
               .map(geojsonFeature -> getFeature(collectionRequest.getSelectedProperties(), geojsonFeature)).toList();
         }).flatMapMany(Flux::fromIterable);
   }
@@ -116,10 +123,11 @@ class OgcApiFeaturesDataRepository implements DataRepository {
   @Override
   public Flux<Map<String, Object>> findBatch(BatchRequest batchRequest) {
     var collectionId = getCollectionId(batchRequest.getObjectType());
-    var idProperty = getIdentityProperty(model.getObjectType(collectionId));
-    var propertyList =
-        supportsPropertySelection ? getPropertiesParameter(batchRequest.getSelectedProperties(), ImmutableList.of()) :
-            ImmutableList.<String>of();
+    var objectType = model.getObjectType(collectionId);
+    var idProperty = getIdentityProperty(objectType);
+    var propertyList = supportsPropertySelection ?
+        getPropertiesParameter(objectType, batchRequest.getSelectedProperties(), ImmutableList.of()) :
+        ImmutableList.<String>of();
     if (!propertyList.isEmpty() && !propertyList.contains(idProperty)) {
       propertyList = Stream.concat(propertyList.stream(), Stream.of(idProperty)).toList();
     }
@@ -134,15 +142,13 @@ class OgcApiFeaturesDataRepository implements DataRepository {
         .replace("{limit}", String.valueOf(objectKeys.size())) + filter + properties;
     ByteBufFlux response;
     if (uri.length() <= MAX_URI_LENGTH) {
-      response =
-          CLIENT.get().uri(uri).responseContent();
+      response = CLIENT.get().uri(uri).responseContent();
     } else if (supportsAdHocQuery) {
       properties = propertyList.isEmpty() ? "" :
           String.format(", \"properties\": [ \"%s\" ]", String.join("\", \"", propertyList));
       var content =
           String.format(AD_HOC_QUERY_TEMPLATE, collectionId, idProperty, String.join("\", \"", objectKeys), properties);
-      response = CLIENT.post()
-          .uri(SEARCH_TEMPLATE.replace("{apiLandingPage}", apiLandingPage))
+      response = CLIENT.post().uri(SEARCH_TEMPLATE.replace("{apiLandingPage}", apiLandingPage))
           .send(ByteBufFlux.fromString(Flux.just(content))).responseContent();
     } else {
       throw new RuntimeException(
@@ -159,7 +165,7 @@ class OgcApiFeaturesDataRepository implements DataRepository {
       }
 
       //noinspection unchecked
-      return ((List<Map<String, Object>>) geojsonFeatureCollection.get("features")).stream()
+      return ((List<Map<String, Object>>) geojsonFeatureCollection.get(FEATURES)).stream()
           .map(geojsonFeature -> getFeature(batchRequest.getSelectedProperties(), geojsonFeature)).toList();
     }).flatMapMany(Flux::fromIterable);
   }
@@ -178,48 +184,60 @@ class OgcApiFeaturesDataRepository implements DataRepository {
     return objectType.getIdentityProperties().get(0).getName();
   }
 
-  private List<String> getPropertiesParameter(List<SelectedProperty> selectedProperties, List<String> parentPath) {
-    return selectedProperties.stream().map(selectedProperty -> {
+  private List<String> getPropertiesParameter(ObjectType objectType, List<SelectedProperty> selectedProperties,
+                                              List<String> parentPath) {
+    return selectedProperties.stream().filter(selectedProperty -> {
+      var property = objectType.getProperty(selectedProperty.getProperty().getName());
+      return !(property instanceof Attribute) || !(((Attribute) property).getType() instanceof GeometryType);
+    }).map(selectedProperty -> {
       var propertyName = selectedProperty.getProperty().getName();
       var subProperties = selectedProperty.getSelectedProperties();
       var path = ImmutableList.<String>builder().addAll(parentPath).add(propertyName).build();
       if (subProperties.isEmpty()) {
         return ImmutableList.of(String.join(PATH_SEPARATOR, path));
       }
-      return getPropertiesParameter(subProperties, path);
+      return getPropertiesParameter(objectType, subProperties, path);
     }).flatMap(List::stream).toList();
   }
 
-  private String getPropertiesParameterString(List<SelectedProperty> selectedProperties, List<String> parentPath) {
-    return String.join(",", getPropertiesParameter(selectedProperties, parentPath));
+  private String getPropertiesParameterString(ObjectType objectType, List<SelectedProperty> selectedProperties,
+                                              List<String> parentPath) {
+
+    return String.join(",", getPropertiesParameter(objectType, selectedProperties, parentPath));
   }
 
   private Map<String, Object> getFeature(List<SelectedProperty> selectedProperties,
                                          Map<String, Object> geojsonFeature) {
     //noinspection unchecked
     var featureProperties =
-        geojsonFeature.containsKey("properties") ? (Map<String, Object>) geojsonFeature.get("properties") :
+        Objects.nonNull(geojsonFeature.get(PROPERTIES)) ? (Map<String, Object>) geojsonFeature.get(PROPERTIES) :
+            ImmutableMap.<String, Object>of();
+
+    //noinspection unchecked
+    var featureGeometry =
+        Objects.nonNull(geojsonFeature.get(GEOMETRY)) ? (Map<String, Object>) geojsonFeature.get(GEOMETRY) :
             ImmutableMap.<String, Object>of();
 
     // ignoring geometry for now
-    return getObject(selectedProperties, geojsonFeature.get("id"), featureProperties);
+    return getObject(selectedProperties, geojsonFeature.get(ID), featureProperties, featureGeometry);
   }
 
   private Map<String, Object> getObject(List<SelectedProperty> selectedProperties, Object featureId,
-                                        Map<String, Object> featureProperties) {
+                                        Map<String, Object> featureProperties, Map<String, Object> featureGeometry) {
     var builder = ImmutableMap.<String, Object>builder();
     selectedProperties.forEach(
-        selectedProperty -> processProperty(builder, selectedProperty, featureId, featureProperties));
+        selectedProperty -> processProperty(builder, selectedProperty, featureId, featureProperties, featureGeometry));
     return builder.build();
   }
 
   private void processProperty(ImmutableMap.Builder<String, Object> builder, SelectedProperty selectedProperty,
-                               Object featureId, Map<String, Object> featureProperties) {
+                               Object featureId, Map<String, Object> featureProperties,
+                               Map<String, Object> featureGeometry) {
     var key = selectedProperty.getProperty().getName();
     if (selectedProperty.getProperty().isIdentifier() && featureId != null) {
       builder.put(key, featureId);
     } else if (selectedProperty.getProperty() instanceof Attribute attribute) {
-      processAttribute(builder, selectedProperty, featureProperties, key, attribute);
+      processAttribute(builder, selectedProperty, featureProperties, key, attribute, featureGeometry);
     } else if (selectedProperty.getProperty() instanceof Relation) {
       processAssociationRole(builder, selectedProperty, featureProperties, key);
     }
@@ -233,12 +251,13 @@ class OgcApiFeaturesDataRepository implements DataRepository {
         //noinspection unchecked
         var valueAsList = (List<Map<String, Object>>) value;
         var listBuilder = ImmutableList.<Map<String, Object>>builder();
-        valueAsList.forEach(
-            refProperties -> listBuilder.add(getObject(selectedProperty.getSelectedProperties(), null, refProperties)));
+        valueAsList.forEach(refProperties -> listBuilder.add(
+            getObject(selectedProperty.getSelectedProperties(), null, refProperties, ImmutableMap.of())));
         builder.put(key, listBuilder.build());
       } else if (value instanceof Map) {
         //noinspection unchecked
-        builder.put(key, getObject(selectedProperty.getSelectedProperties(), null, (Map<String, Object>) value));
+        builder.put(key,
+            getObject(selectedProperty.getSelectedProperties(), null, (Map<String, Object>) value, ImmutableMap.of()));
       } else {
         throw new RuntimeException(String.format("Unsupported value type: %s", value.getClass().getSimpleName()));
       }
@@ -246,7 +265,8 @@ class OgcApiFeaturesDataRepository implements DataRepository {
   }
 
   private void processAttribute(ImmutableMap.Builder<String, Object> builder, SelectedProperty sp,
-                                Map<String, Object> featureProperties, String key, Attribute attribute) {
+                                Map<String, Object> featureProperties, String key, Attribute attribute,
+                                Map<String, Object> featureGeometry) {
     var value = featureProperties.get(key);
     if (value != null) {
       switch (attribute.getType().getName()) {
@@ -254,6 +274,9 @@ class OgcApiFeaturesDataRepository implements DataRepository {
         default -> throw new RuntimeException(
             String.format("Unsupported attribute type: %s", ((Attribute) sp.getProperty()).getType().getName()));
       }
+    } else if (attribute.getType() instanceof GeometryType && !featureGeometry.isEmpty()) {
+      // use the primary geometry as fallback
+      builder.put(key, featureGeometry);
     }
   }
 }

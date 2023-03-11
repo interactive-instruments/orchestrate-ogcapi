@@ -66,3 +66,9 @@ objectTypeMappings:
       bgtStatus:
         pathMapping:
           path: "bgt-status"
+      bovenaanzichtgeometrie:
+        pathMapping:
+          path: identificatieBAGPND/geometrie
+      maaiveldgeometrie:
+        pathMapping:
+          path: geometrie2d
