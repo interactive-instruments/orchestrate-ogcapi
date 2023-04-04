@@ -97,9 +97,15 @@ class OgcApiFeaturesDataRepository implements DataRepository {
     var collectionId = getCollectionId(collectionRequest.getObjectType());
     var objectType = model.getObjectType(collectionId);
     var filterExpression = collectionRequest.getFilter();
-    var filter = filterExpression != null ?
-        String.format("&%s=%s", String.join(PATH_SEPARATOR, filterExpression.getPropertyPath().getSegments()),
-            filterExpression.getValue()) : "";
+    var filter = "";
+    if (filterExpression != null) {
+      var basePath = String.join(PATH_SEPARATOR, filterExpression.getPropertyPath().getSegments());
+      if (filterExpression.getValue() instanceof Map) {
+        filter = ((Map<?, ?>) filterExpression.getValue()).entrySet().stream()
+            .map(entry -> String.format("&%s%s%s=%s", basePath, PATH_SEPARATOR, entry.getKey(), entry.getValue()))
+            .collect(Collectors.joining());
+      }
+    }
     var properties = supportsPropertySelection ? String.format("&properties=%s",
         getPropertiesParameterString(objectType, collectionRequest.getSelectedProperties(), ImmutableList.of())) : "";
     return CLIENT.get().uri(
