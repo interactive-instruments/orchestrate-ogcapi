@@ -1,6 +1,6 @@
 objectTypeMappings:
   Adres:
-    sourceRoot: bag:nummeraanduidingen
+    sourceRoot: bag:nummeraanduiding
     propertyMappings:
       identificatie:
         pathMapping:
@@ -62,13 +62,13 @@ objectTypeMappings:
           path: identificatie
       bouwjaar:
         pathMapping:
-          path: identificatieBAGPND/bouwjaar
-      bgtStatus:
-        pathMapping:
-          path: "bgt-status"
+          path: isGerelateerdAan/oorspronkelijkBouwjaar
       bovenaanzichtgeometrie:
         pathMapping:
-          path: identificatieBAGPND/geometrie
+          path: isGerelateerdAan/geometrie
       maaiveldgeometrie:
         pathMapping:
           path: geometrie2d
+      heeftAlsAdres:
+        pathMapping:
+          path: isGerelateerdAan/bevat/heeftAlsHoofdadres
