@@ -44,13 +44,11 @@ final class TestFixtures {
               .type(ScalarTypes.STRING)
               .cardinality(Cardinality.REQUIRED)
               .build())
-          /*
           .property(Relation.builder()
               .name("bevat")
               .target(ObjectTypeRef.forType("verblijfsobject"))
               .cardinality(Cardinality.MULTI)
               .build())
-           */
           .build())
       .objectType(ObjectType.builder()
           .name("nummeraanduiding")
@@ -161,8 +159,8 @@ final class TestFixtures {
               .name("maaktDeelUitVan")
               .target(ObjectTypeRef.forType("pand"))
               .cardinality(Cardinality.of(1, Cardinality.INFINITE))
-              .inverseName("bevat")
-              .inverseCardinality(Cardinality.MULTI)
+              //.inverseName("bevat")
+              //.inverseCardinality(Cardinality.MULTI)
               .build())
           .build())
       .build();
@@ -426,8 +424,8 @@ final class TestFixtures {
 
     return modelMapping.toBuilder()
         .targetModel(targetModel)
-        .sourceModel("bag", SOURCE_MODEL_BAG)
-        .sourceModel("bgt", SOURCE_MODEL_BGT)
+        .sourceModel(SOURCE_MODEL_BAG)
+        .sourceModel(SOURCE_MODEL_BGT)
         .build();
   }
 
