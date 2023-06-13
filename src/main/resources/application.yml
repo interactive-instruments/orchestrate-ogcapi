@@ -19,7 +19,6 @@ management:
 
 orchestrate:
   gateway:
-    targetModel: adres
-    mapping: /config/adresmapping.yaml
-#    targetModel: coreLocation
-#    mapping: /config/coreLocationMapping.yaml
+    targetModel: ADRES #${TARGET_MODEL:adres}
+    mapping: /config/imxgeoMapping.yaml # ${MODEL_MAPPING:/config/imxgeoMapping.yaml}
+    dataPath: /data # ${DATA_PATH:./data}

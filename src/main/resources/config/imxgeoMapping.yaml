@@ -1,0 +1,125 @@
+lineageNameMapping:
+  hasLineage: geregistreerdMet
+  ObjectLineage: Registratie
+  orchestratedProperties: bestaatUit
+  OrchestratedProperty: GeorkestreerdGegeven
+  SourceProperty: Brongegeven
+  ObjectReference: Object
+  subject: onderwerp
+  property: kenmerk
+  value: waarde
+  objectKey: identificatie
+  objectType: type
+
+objectTypeMappings:
+  Adres:
+    sourceRoot: bag:nummeraanduiding
+    propertyMappings:
+      identificatie:
+        pathMappings:
+          path: identificatie
+      huisnummer:
+        pathMappings:
+          path: huisnummer
+      huisnummertoevoeging:
+        pathMappings:
+          path: huisnummertoevoeging
+      huisletter:
+        pathMappings:
+          path: huisletter
+      postcode:
+        pathMappings:
+          path: postcode
+      straatnaam:
+        pathMappings:
+          path: ligtAan/naam
+      plaatsnaam:
+        pathMappings:
+          path: ligtIn/naam
+          andThen:
+            path: ligtAan/ligtIn/naam
+            ifMatch:
+              type: isNull
+      isHoofdadres:
+        pathMappings:
+          path: isHoofdadresVan/identificatie
+          map:
+            type: cel
+            options:
+              expr: 'result != null'
+      omschrijving:
+        pathMappings:
+          - path: ligtAan/naam
+          - path: huisnummer
+            map:
+              type: prepend
+              options:
+                prefix: ' '
+          - path: huisletter
+            map:
+              type: prepend
+              options:
+                prefix: ' '
+          - path: huisnummertoevoeging
+            map:
+              type: prepend
+              options:
+                prefix: '-'
+          - path: postcode
+            map:
+              type: prepend
+              options:
+                prefix: ', '
+          - path: ligtIn/naam
+            andThen:
+              path: ligtAan/ligtIn/naam
+              ifMatch:
+                type: isNull
+            map:
+              type: prepend
+              options:
+                prefix: ' '
+        combiner:
+          type: join
+      # TODO: auto-generatie inverse mappings
+      isAdresVanGebouw:
+        pathMappings:
+          path: isHoofdadresVan/maaktDeelUitVan/isGerelateerdAan
+
+  Gebouw:
+    sourceRoot: bgt:pand
+    propertyMappings:
+      identificatie:
+        pathMappings:
+          path: identificatie
+      bouwjaar:
+        pathMappings:
+          path: isGerelateerdAan/oorspronkelijkBouwjaar
+      bovenaanzichtgeometrie:
+        pathMappings:
+          path: isGerelateerdAan/geometrie
+      maaiveldgeometrie:
+        pathMappings:
+          path: geometrie
+      heeftAlsAdres:
+        pathMappings:
+          path: isGerelateerdAan/bevat/heeftAlsHoofdadres
+      #bevindtZichOpPerceel:
+      #  pathMappings:
+      #    path: isGerelateerdAan/bevat/heeftAlsHoofdadres/betreftInverse/heeft
+
+  Perceel:
+    sourceRoot: brk:perceel
+    propertyMappings:
+      identificatie:
+        pathMappings:
+          path: identificatie
+      #laatsteKoopsom:
+      #  pathMappings:
+      #    path: koopsom
+      oppervlak:
+        pathMappings:
+          path: kadastraleGrootte
+      begrenzing:
+        pathMappings:
+          path: begrenzing
