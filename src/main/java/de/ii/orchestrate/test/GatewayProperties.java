@@ -12,7 +12,5 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties("orchestrate.gateway")
 public class GatewayProperties {
 
-  private TestFixtures.TargetModelType targetModel;
-
   private String mapping;
 }

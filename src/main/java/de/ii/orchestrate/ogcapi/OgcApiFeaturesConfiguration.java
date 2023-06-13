@@ -28,13 +28,16 @@ public class OgcApiFeaturesConfiguration {
   private final boolean supportsBatchLoading;
   private final boolean supportsAdHocQuery;
   private final boolean supportsCql2InOperator;
+  private final boolean supportsRelProfiles;
+  private final boolean supportsIntersects;
 
   @Builder(toBuilder = true)
-  public OgcApiFeaturesConfiguration(Model model, String apiLandingPage, int limit, boolean supportsPropertySelection) {
+  public OgcApiFeaturesConfiguration(Model model, String apiLandingPage, int limit, boolean supportsPropertySelection, boolean supportsRelProfiles) {
     this.model = model;
     this.apiLandingPage = apiLandingPage;
     this.limit = limit;
     this.supportsPropertySelection = supportsPropertySelection;
+    this.supportsRelProfiles = supportsRelProfiles;
     var conformsTo = getConformanceDeclaration();
     this.supportsBatchLoading = conformsTo.stream()
         .anyMatch(uri -> uri.startsWith("http://www.opengis.net/spec/cql2/") && uri.endsWith("/conf/cql2-text")) &&
@@ -48,6 +51,13 @@ public class OgcApiFeaturesConfiguration {
             uri.endsWith("/conf/advanced-comparison-operators")) &&
         conformsTo.stream().anyMatch(uri -> uri.startsWith("http://www.opengis.net/spec/ogcapi-features-") &&
             uri.endsWith("/conf/ad-hoc-queries"));
+    this.supportsIntersects = conformsTo.stream()
+        .anyMatch(uri -> uri.startsWith("http://www.opengis.net/spec/cql2/") && uri.endsWith("/conf/cql2-text")) &&
+        conformsTo.stream().anyMatch(uri -> uri.startsWith("http://www.opengis.net/spec/ogcapi-features-3/") &&
+            uri.endsWith("/conf/features-filter")) &&
+        conformsTo.stream()
+            .anyMatch(
+                uri -> uri.startsWith("http://www.opengis.net/spec/cql2/") && uri.endsWith("/conf/spatial-operators"));
   }
 
   private List<String> getConformanceDeclaration() {

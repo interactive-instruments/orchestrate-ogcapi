@@ -4,7 +4,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.com.google.common.collect.ImmutableList;
 import graphql.com.google.common.collect.ImmutableMap;
+import graphql.com.google.common.collect.ImmutableSet;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -21,6 +24,8 @@ import org.dotwebstack.orchestrate.source.DataRepository;
 import org.dotwebstack.orchestrate.source.ObjectRequest;
 import org.dotwebstack.orchestrate.source.SelectedProperty;
 import org.dotwebstack.orchestrate.source.SourceException;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.io.WKTWriter;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.netty.ByteBufFlux;
@@ -53,6 +58,9 @@ class OgcApiFeaturesDataRepository implements DataRepository {
   private final boolean supportsBatchLoading;
   private final boolean supportsCql2InOperator;
   private final boolean supportsAdHocQuery;
+  private final boolean supportsRelProfiles;
+  private final boolean supportsIntersects;
+
   private final Model model;
 
   public OgcApiFeaturesDataRepository(OgcApiFeaturesConfiguration configuration) {
@@ -62,6 +70,8 @@ class OgcApiFeaturesDataRepository implements DataRepository {
     this.supportsBatchLoading = configuration.isSupportsBatchLoading();
     this.supportsCql2InOperator = configuration.isSupportsCql2InOperator();
     this.supportsAdHocQuery = configuration.isSupportsAdHocQuery();
+    this.supportsRelProfiles = configuration.isSupportsRelProfiles();
+    this.supportsIntersects = configuration.isSupportsIntersects();
     this.model = configuration.getModel();
   }
 
@@ -73,21 +83,48 @@ class OgcApiFeaturesDataRepository implements DataRepository {
   @Override
   public Mono<Map<String, Object>> findOne(ObjectRequest objectRequest) {
     var collectionId = getCollectionId(objectRequest.getObjectType());
+    if (collectionId == null) {
+      throw new RuntimeException(
+          String.format("Invalid object request: no object type has been provided. Request: %s", objectRequest));
+    }
     var objectType = model.getObjectType(collectionId);
+    if (objectType == null) {
+      throw new RuntimeException(
+          String.format("Invalid object request: object type is not present in the model. Request: %s", objectRequest));
+    }
     var idProperty = getIdentityProperty(objectType);
+    if (idProperty == null) {
+      throw new RuntimeException(
+          String.format("Invalid object request: object type has no id property. Request: %s", objectRequest));
+    }
     var featureId = (String) objectRequest.getObjectKey().get(idProperty);
+    if (featureId == null) {
+      throw new RuntimeException(
+          String.format("Invalid object request: no object id has been provided. Request: %s", objectRequest));
+    }
+
     var properties = supportsPropertySelection ? "?properties=" +
         getPropertiesParameterString(objectType, objectRequest.getSelectedProperties(), ImmutableList.of()) : "";
-    return CLIENT.get().uri(
-            ONE_TEMPLATE.replace("{apiLandingPage}", apiLandingPage).replace("{collectionId}", collectionId)
-                .replace("{featureId}", featureId) + properties).responseContent().aggregate().asString()
-        .map(geojsonFeatureAsString -> {
+    var profile = supportsRelProfiles ? (properties.isEmpty() ? "?" : "&") + "profile=rel-as-key" : "";
+    var uri = ONE_TEMPLATE.replace("{apiLandingPage}", apiLandingPage).replace("{collectionId}", collectionId)
+        .replace("{featureId}", featureId) + properties + profile;
+
+    return CLIENT.get().uri(uri)
+        .responseSingle((response, content) -> {
+          if (response.status() != HttpResponseStatus.OK && response.status() != HttpResponseStatus.NOT_FOUND) {
+            throw new RuntimeException(
+                String.format("Object request returned a status different than 200: %d. URI: %s",
+                    response.status().code(), uri));
+          }
+          return response.status() == HttpResponseStatus.OK ? content.asByteArray() : Mono.empty();
+        })
+        .map(geojsonFeatureAsByteArray -> {
           try {
             //noinspection unchecked
             return (Map<String, Object>) getFeature(objectRequest.getSelectedProperties(),
-                MAPPER.readValue(geojsonFeatureAsString, Map.class));
-          } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
+                MAPPER.readValue(geojsonFeatureAsByteArray, Map.class));
+          } catch (IOException e) {
+            throw new RuntimeException("Received invalid feature response.", e);
           }
         });
   }
@@ -95,29 +132,54 @@ class OgcApiFeaturesDataRepository implements DataRepository {
   @Override
   public Flux<Map<String, Object>> find(CollectionRequest collectionRequest) {
     var collectionId = getCollectionId(collectionRequest.getObjectType());
+    if (collectionId == null) {
+      throw new RuntimeException(
+          String.format("Invalid collection request: no object type has been provided. Request: %s",
+              collectionRequest));
+    }
     var objectType = model.getObjectType(collectionId);
+    if (objectType == null) {
+      throw new RuntimeException(
+          String.format("Invalid collection request: object type is not present in the model. Request: %s",
+              collectionRequest));
+    }
     var filterExpression = collectionRequest.getFilter();
     var filter = "";
     if (filterExpression != null) {
-      var basePath = String.join(PATH_SEPARATOR, filterExpression.getPropertyPath().getSegments());
+      var basePath = String.join(PATH_SEPARATOR, filterExpression.getPath().getSegments());
       if (filterExpression.getValue() instanceof Map) {
-        filter = ((Map<?, ?>) filterExpression.getValue()).entrySet().stream()
-            .map(entry -> String.format("&%s%s%s=%s", basePath, PATH_SEPARATOR, entry.getKey(), entry.getValue()))
+        filter = ((Map<?, ?>) filterExpression.getValue()).values().stream()
+            .map(v -> String.format("&%s=%s", basePath, v))
             .collect(Collectors.joining());
+      } else if (filterExpression.getValue() instanceof Geometry) {
+        var srid = ((Geometry) filterExpression.getValue()).getSRID();
+        var wkt = new WKTWriter().write((Geometry) filterExpression.getValue());
+        filter = String.format("&filter=s_intersects(%s,%s)%s", basePath, wkt,
+            srid != 4326 ? "&filter-crs=http://www.opengis.net/def/crs/EPSG/0/" + srid : "");
       }
     }
     var properties = supportsPropertySelection ? String.format("&properties=%s",
         getPropertiesParameterString(objectType, collectionRequest.getSelectedProperties(), ImmutableList.of())) : "";
-    return CLIENT.get().uri(
-            COLLECTION_TEMPLATE.replace("{apiLandingPage}", apiLandingPage).replace("{collectionId}", collectionId)
-                .replace("{limit}", String.valueOf(limit)) + filter + properties).responseContent().aggregate().asString()
-        .map(geojsonFeatureCollectionAsString -> {
+    var profile = supportsRelProfiles ? "&profile=rel-as-key" : "";
+    var uri = COLLECTION_TEMPLATE.replace("{apiLandingPage}", apiLandingPage).replace("{collectionId}", collectionId)
+        .replace("{limit}", String.valueOf(limit)) + filter + properties + profile;
+
+    return CLIENT.get().uri(uri)
+        .responseSingle((response, content) -> {
+          if (response.status() != HttpResponseStatus.OK && response.status() != HttpResponseStatus.NOT_FOUND) {
+            throw new RuntimeException(
+                String.format("Collection request returned a status different than 200: %d. URI: %s",
+                    response.status().code(), uri));
+          }
+          return response.status() == HttpResponseStatus.OK ? content.asByteArray() : Mono.empty();
+        })
+        .map(geojsonFeatureCollectionAsByteArray -> {
           Map<String, Object> geojsonFeatureCollection;
           try {
             //noinspection unchecked
-            geojsonFeatureCollection = MAPPER.readValue(geojsonFeatureCollectionAsString, Map.class);
-          } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
+            geojsonFeatureCollection = MAPPER.readValue(geojsonFeatureCollectionAsByteArray, Map.class);
+          } catch (IOException e) {
+            throw new RuntimeException("Received invalid feature collection response.", e);
           }
 
           //noinspection unchecked
@@ -129,8 +191,21 @@ class OgcApiFeaturesDataRepository implements DataRepository {
   @Override
   public Flux<Map<String, Object>> findBatch(BatchRequest batchRequest) {
     var collectionId = getCollectionId(batchRequest.getObjectType());
+    if (collectionId == null) {
+      throw new RuntimeException(
+          String.format("Invalid batch request: no object type has been provided. Request: %s", batchRequest));
+    }
     var objectType = model.getObjectType(collectionId);
+    if (objectType == null) {
+      throw new RuntimeException(
+          String.format("Invalid batch request: object type is not present in the model. Request: %s", batchRequest));
+    }
     var idProperty = getIdentityProperty(objectType);
+    if (idProperty == null) {
+      throw new RuntimeException(
+          String.format("Invalid batch request: object type has no id property. Request: %s", batchRequest));
+    }
+
     var propertyList = supportsPropertySelection ?
         getPropertiesParameter(objectType, batchRequest.getSelectedProperties(), ImmutableList.of()) :
         ImmutableList.<String>of();
@@ -144,30 +219,48 @@ class OgcApiFeaturesDataRepository implements DataRepository {
         String.format("&filter=%s%%20in%%20('%s')", idProperty, String.join("','", objectKeys)) :
         String.format("&filter=%s", String.join("%%20OR%%20",
             objectKeys.stream().map(key -> String.format("%s='%s'", idProperty, key)).toList()));
+    var profile = supportsRelProfiles ? "&profile=rel-as-key" : "";
     var uri = COLLECTION_TEMPLATE.replace("{apiLandingPage}", apiLandingPage).replace("{collectionId}", collectionId)
-        .replace("{limit}", String.valueOf(objectKeys.size())) + filter + properties;
-    ByteBufFlux response;
+        .replace("{limit}", String.valueOf(objectKeys.size())) + filter + properties + profile;
+
+    Mono<byte[]> responseContent;
     if (uri.length() <= MAX_URI_LENGTH) {
-      response = CLIENT.get().uri(uri).responseContent();
+      responseContent = CLIENT.get().uri(uri)
+          .responseSingle((response, content) -> {
+            if (response.status() != HttpResponseStatus.OK && response.status() != HttpResponseStatus.NOT_FOUND) {
+              throw new RuntimeException(
+                  String.format("Collection request returned a status different than 200: %d. URI: %s",
+                      response.status().code(), uri));
+            }
+            return response.status() == HttpResponseStatus.OK ? content.asByteArray() : Mono.empty();
+          });
     } else if (supportsAdHocQuery) {
       properties = propertyList.isEmpty() ? "" :
           String.format(", \"properties\": [ \"%s\" ]", String.join("\", \"", propertyList));
-      var content =
+      var requestContent =
           String.format(AD_HOC_QUERY_TEMPLATE, collectionId, idProperty, String.join("\", \"", objectKeys), properties);
-      response = CLIENT.post().uri(SEARCH_TEMPLATE.replace("{apiLandingPage}", apiLandingPage))
-          .send(ByteBufFlux.fromString(Flux.just(content))).responseContent();
+      responseContent = CLIENT.post().uri(SEARCH_TEMPLATE.replace("{apiLandingPage}", apiLandingPage))
+          .send(ByteBufFlux.fromString(Flux.just(requestContent)))
+          .responseSingle((response, content) -> {
+            if (response.status() != HttpResponseStatus.OK && response.status() != HttpResponseStatus.NOT_FOUND) {
+              throw new RuntimeException(
+                  String.format("Collection request returned a status different than 200: %d. Request: %s",
+                      response.status().code(), batchRequest));
+            }
+            return response.status() == HttpResponseStatus.OK ? content.asByteArray() : Mono.empty();
+          });
     } else {
       throw new RuntimeException(
           "Batch loading failed, too many identifiers, the resulting URI is too long and Ad-hoc Queries using POST are not supported.");
     }
 
-    return response.aggregate().asString().map(geojsonFeatureCollectionAsString -> {
+    return responseContent.map(geojsonFeatureCollectionAsByteArray -> {
       Map<String, Object> geojsonFeatureCollection;
       try {
         //noinspection unchecked
-        geojsonFeatureCollection = MAPPER.readValue(geojsonFeatureCollectionAsString, Map.class);
-      } catch (JsonProcessingException e) {
-        throw new RuntimeException(e);
+        geojsonFeatureCollection = MAPPER.readValue(geojsonFeatureCollectionAsByteArray, Map.class);
+      } catch (IOException e) {
+        throw new RuntimeException("Received invalid feature collection response.", e);
       }
 
       //noinspection unchecked
@@ -197,12 +290,14 @@ class OgcApiFeaturesDataRepository implements DataRepository {
       return !(property instanceof Attribute) || !(((Attribute) property).getType() instanceof GeometryType);
     }).map(selectedProperty -> {
       var propertyName = selectedProperty.getProperty().getName();
-      var subProperties = selectedProperty.getSelectedProperties();
+      var subProperties = selectedProperty.getProperty() instanceof Relation
+          ? ImmutableSet.<SelectedProperty>of()
+          : selectedProperty.getSelectedProperties();
       var path = ImmutableList.<String>builder().addAll(parentPath).add(propertyName).build();
       if (subProperties.isEmpty()) {
         return ImmutableList.of(String.join(PATH_SEPARATOR, path));
       }
-      return getPropertiesParameter(objectType, subProperties, path);
+      return getPropertiesParameter(objectType, subProperties.stream().toList(), path);
     }).flatMap(List::stream).toList();
   }
 
@@ -258,12 +353,18 @@ class OgcApiFeaturesDataRepository implements DataRepository {
         var valueAsList = (List<Map<String, Object>>) value;
         var listBuilder = ImmutableList.<Map<String, Object>>builder();
         valueAsList.forEach(refProperties -> listBuilder.add(
-            getObject(selectedProperty.getSelectedProperties(), null, refProperties, ImmutableMap.of())));
+            getObject(selectedProperty.getSelectedProperties().stream().toList(), null, refProperties,
+                ImmutableMap.of())));
         builder.put(key, listBuilder.build());
       } else if (value instanceof Map) {
         //noinspection unchecked
         builder.put(key,
-            getObject(selectedProperty.getSelectedProperties(), null, (Map<String, Object>) value, ImmutableMap.of()));
+            getObject(selectedProperty.getSelectedProperties().stream().toList(), null, (Map<String, Object>) value,
+                ImmutableMap.of()));
+      } else if (value instanceof String) {
+        builder.put(key,
+            getObject(selectedProperty.getSelectedProperties().stream().toList(), null, ImmutableMap.of("identificatie",
+                value), ImmutableMap.of()));
       } else {
         throw new RuntimeException(String.format("Unsupported value type: %s", value.getClass().getSimpleName()));
       }

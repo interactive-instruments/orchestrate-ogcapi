@@ -27,51 +27,56 @@ public class GatewayConfiguration {
   @Bean
   public GraphQlSource graphQlSource() {
     var sourceConfigurationBag = OgcApiFeaturesConfiguration.builder()
-        .model(TestFixtures.SOURCE_MODEL_BAG)
-        // .apiLandingPage("http://localhost:8080/rest/services/bag")x^
+        .model(TestFixtures.createBagModel())
+        //.apiLandingPage("http://localhost:7080/rest/services/bag")
         .apiLandingPage("https://wau.ldproxy.net/bag")
         .limit(10)
         .supportsPropertySelection(true)
+        .supportsRelProfiles(true)
         .build();
 
     var sourceConfigurationBgt = OgcApiFeaturesConfiguration.builder()
-        .model(TestFixtures.SOURCE_MODEL_BGT)
-        // .apiLandingPage("http://localhost:8080/rest/services/bgt")x^
+        .model(TestFixtures.createBgtModel())
+        //.apiLandingPage("http://localhost:7080/rest/services/bgt")
         .apiLandingPage("https://wau.ldproxy.net/bgt")
         .limit(10)
         .supportsPropertySelection(true)
+        .supportsRelProfiles(true)
         .build();
 
     var sourceConfigurationPerceel = OgcApiFeaturesConfiguration.builder()
-        .model(TestFixtures.SOURCE_MODEL_PERCEEL)
-        // .apiLandingPage("http://localhost:8080/rest/services/perceel")x^
+        .model(TestFixtures.createBrkModel())
+        //.apiLandingPage("http://localhost:7080/rest/services/perceel")
         .apiLandingPage("https://wau.ldproxy.net/perceel")
         .limit(10)
         .supportsPropertySelection(true)
+        .supportsRelProfiles(false)
         .build();
 
     var sourceConfigurationBestuurlijkeGebieden = OgcApiFeaturesConfiguration.builder()
-        .model(TestFixtures.SOURCE_MODEL_BESTUURLIJKE_GEBIEDEN)
-        // .apiLandingPage("http://localhost:8080/rest/services/bestuurlijke-gebieden")x^
+        .model(TestFixtures.createBestuurlijkeGebiedenModel())
+        //.apiLandingPage("http://localhost:7080/rest/services/bestuurlijke-gebieden")
         .apiLandingPage("https://wau.ldproxy.net/bestuurlijke-gebieden")
         .limit(10)
         .supportsPropertySelection(true)
+        .supportsRelProfiles(true)
         .build();
 
     var sourceConfigurationWaterschap = OgcApiFeaturesConfiguration.builder()
-        .model(TestFixtures.SOURCE_MODEL_WATERSCHAP)
-        // .apiLandingPage("http://localhost:8080/rest/services/waterschap")x^
+        .model(TestFixtures.createWatershaapModel())
+        //.apiLandingPage("http://localhost:7080/rest/services/waterschap")
         .apiLandingPage("https://wau.ldproxy.net/waterschap")
         .limit(10)
         .supportsPropertySelection(true)
+        .supportsRelProfiles(false)
         .build();
 
     var orchestration = Orchestration.builder()
-        .modelMapping(TestFixtures.createModelMapping(gatewayProperties.getTargetModel(),
+        .modelMapping(TestFixtures.createModelMapping(
             GatewayConfiguration.class.getResourceAsStream(gatewayProperties.getMapping())))
         .source("bag", new OgcApiFeaturesSource(sourceConfigurationBag))
         .source("bgt", new OgcApiFeaturesSource(sourceConfigurationBgt))
-        .source("dkk", new OgcApiFeaturesSource(sourceConfigurationPerceel))
+        .source("brk", new OgcApiFeaturesSource(sourceConfigurationPerceel))
         .source("wat", new OgcApiFeaturesSource(sourceConfigurationWaterschap))
         .source("geb", new OgcApiFeaturesSource(sourceConfigurationBestuurlijkeGebieden))
         .extension(new GeometryExtension())
