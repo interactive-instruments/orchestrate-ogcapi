@@ -216,19 +216,24 @@ final class TestFixtures {
         .build();
   }
 
-  public static ModelMapping createModelMapping(InputStream mappingInputStream) {
+  public static ModelMapping createModelMapping(InputStream mappingInputStream,
+                                                YamlModelMappingParser yamlModelMappingParser,
+                                                boolean useInternalModels) {
     Model targetModel = createImxGeoModel();
 
-    var yamlMapper = YamlModelMappingParser.getInstance();
+    var modelMapping = yamlModelMappingParser.parse(mappingInputStream);
 
-    // TODO: Merge into one step
-    return yamlMapper.parse(mappingInputStream)
-        .toBuilder()
-        .targetModel(targetModel)
-        .sourceModel(createBagModel())
-        .sourceModel(createBgtModel())
-        .sourceModel(createBrkModel())
-        .build();
+    // TODO: temporary situation, for testing purposes
+    if (useInternalModels) {
+      return modelMapping.toBuilder()
+          .targetModel(targetModel)
+          .sourceModel(createBagModel())
+          .sourceModel(createBgtModel())
+          .sourceModel(createBrkModel())
+          .build();
+    }
+
+    return modelMapping;
   }
 
   private static Model createImxGeoModel() {
