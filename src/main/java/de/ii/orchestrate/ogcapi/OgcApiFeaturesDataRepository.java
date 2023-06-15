@@ -256,9 +256,9 @@ class OgcApiFeaturesDataRepository implements DataRepository {
       queryParams.put("profile", "rel-as-key");
     }
     if (supportsCql2InOperator) {
-      queryParams.put("filter", String.format("%s%%20in%%20('%s')", idProperty, String.join("','", objectKeys)));
+      queryParams.put("filter", String.format("%s in ('%s')", idProperty, String.join("','", objectKeys)));
     } else {
-      queryParams.put("filter", String.join("%%20OR%%20",
+      queryParams.put("filter", String.join(" OR ",
           objectKeys.stream().map(key -> String.format("%s='%s'", idProperty, key)).toList()));
     }
     queryParams.put("limit", String.valueOf(objectKeys.size()));

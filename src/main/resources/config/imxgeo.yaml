@@ -12,31 +12,31 @@ lineageNameMapping:
   objectType: type
 
 sourceRelations:
-#  - sourceType: bgt:pand
-#    property:
-#      name: isGerelateerdAan2
-#      target: bag:pand
-#      cardinality: 0..1
-#      inverseName: gerelateerdBgtPand
-#      inverseCardinality: 0..1
-#      keyMapping:
-#        identificatie: isGerelateerdAan
-  - sourceType: bgt:pand
+  - sourceType: bgt:Pand
     property:
-      name: gerelateerdBagPandGeo
-      target: bag:pand
+      name: gerelateerdBagPand
+      target: bag:Pand
       cardinality: 0..1
-      inverseName: gerelateerdBgtPandGeo
+      inverseName: gerelateerdBgtPand
       inverseCardinality: 0..1
-      filterMappings:
-        - property: geometrie
-          operator:
-            type: intersects
-          sourcePath: geometrie2dGrondvlak
+      keyMapping:
+        identificatie: identificatieBAGPND
+#  - sourceType: bgt:Pand
+#    property:
+#      name: gerelateerdBagPandGeo
+#      target: bag:Pand
+#      cardinality: 0..1
+#      inverseName: gerelateerdBgtPandGeo
+#      inverseCardinality: 0..1
+#      filterMappings:
+#        - property: geometrie
+#          operator:
+#            type: intersects
+#          sourcePath: geometrie2dGrondvlak
 
 objectTypeMappings:
   Adres:
-    sourceRoot: bag:nummeraanduiding
+    sourceRoot: bag:Nummeraanduiding
     propertyMappings:
       identificatie:
         pathMappings:
@@ -69,7 +69,7 @@ objectTypeMappings:
           map:
             type: cel
             options:
-              expr: 'result != null'
+              expr: 'type(result) != null_type'
       omschrijving:
         pathMappings:
           - path: ligtAan/naam
@@ -107,39 +107,47 @@ objectTypeMappings:
       # TODO: auto-generatie inverse mappings
       isAdresVanGebouw:
         pathMappings:
-          path: isHoofdadresVan/maaktDeelUitVan/isGerelateerdAan
+          path: isHoofdadresVan/maaktDeelUitVan/gerelateerdBgtPand
 
   Gebouw:
-    sourceRoot: bgt:pand
+    sourceRoot: bgt:Pand
     propertyMappings:
       identificatie:
         pathMappings:
           path: identificatie
       bouwjaar:
         pathMappings:
-          path: gerelateerdBagPandGeo/oorspronkelijkBouwjaar
+          path: gerelateerdBagPand/oorspronkelijkBouwjaar
       bovenaanzichtgeometrie:
         pathMappings:
-          path: gerelateerdBagPandGeo/geometrie
+          path: gerelateerdBagPand/geometrie
       maaiveldgeometrie:
         pathMappings:
-          path: geometrie
+          path: geometrie2dGrondvlak
       heeftAlsAdres:
         pathMappings:
-          path: gerelateerdBagPandGeo/bevat/heeftAlsHoofdadres
-      #bevindtZichOpPerceel:
-      #  pathMappings:
-      #    path: isGerelateerdAan/bevat/heeftAlsHoofdadres/betreftInverse/heeft
+          - path: gerelateerdBagPand/bevat/heeftAlsHoofdadres
+          - path: gerelateerdBagPand/bevat/heeftAlsNevenadres
+        combiner:
+          type: merge
+      totaalPerceelOppervlak:
+        pathMappings:
+          path: gerelateerdBagPand/bevat/heeftAlsHoofdadres/betreftInverse/heeft/kadastraleGrootte
+        combiner:
+          type: sum
+      bevindtZichOpPerceel:
+        pathMappings:
+          path: gerelateerdBagPand/bevat/heeftAlsHoofdadres/betreftInverse/heeft
 
   Perceel:
-    sourceRoot: brk:perceel
+    sourceRoot: brk:Perceel
     propertyMappings:
       identificatie:
         pathMappings:
           path: identificatie
-      #laatsteKoopsom:
-      #  pathMappings:
-      #    path: koopsom
+      laatsteKoopsom:
+        pathMappings:
+          path: koopsom
       oppervlak:
         pathMappings:
           path: kadastraleGrootte
