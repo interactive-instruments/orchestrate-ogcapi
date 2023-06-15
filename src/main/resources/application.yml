@@ -25,16 +25,16 @@ orchestrate:
       bag:
         type: ogcapi
         options:
-          #landingPage: http://localhost:7080/rest/services/bag
-          landingPage: https://wau.ldproxy.net/bag
+          #url: http://localhost:7080/rest/services/bag
+          url: https://wau.ldproxy.net/bag
           limit: 15
           supportsPropertySelection: true
           supportsRelProfiles: true
       bgt:
         type: ogcapi
         options:
-          #landingPage: http://localhost:7080/rest/services/bgt
-          landingPage: https://wau.ldproxy.net/bgt
+          #url: http://localhost:7080/rest/services/bgt
+          url: https://wau.ldproxy.net/bgt
           limit: 15
           supportsPropertySelection: true
           supportsRelProfiles: true

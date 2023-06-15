@@ -21,6 +21,7 @@ import org.dotwebstack.orchestrate.model.Attribute;
 import org.dotwebstack.orchestrate.model.Model;
 import org.dotwebstack.orchestrate.model.ObjectType;
 import org.dotwebstack.orchestrate.model.Relation;
+import org.dotwebstack.orchestrate.model.filters.FilterOperator;
 import org.dotwebstack.orchestrate.source.BatchRequest;
 import org.dotwebstack.orchestrate.source.CollectionRequest;
 import org.dotwebstack.orchestrate.source.DataRepository;
@@ -41,7 +42,6 @@ class OgcApiFeaturesDataRepository implements DataRepository {
 
   final static String ONE_TEMPLATE = "{apiLandingPage}/collections/{collectionId}/items/{featureId}?";
 
-  // limit to 10 features for now until there is paging support
   final static String COLLECTION_TEMPLATE = "{apiLandingPage}/collections/{collectionId}/items?";
   final static String SEARCH_TEMPLATE = "{apiLandingPage}/search";
 
@@ -59,6 +59,7 @@ class OgcApiFeaturesDataRepository implements DataRepository {
   private final int limit;
   private final Integer srid;
   private final boolean supportsPropertySelection;
+  private final boolean supportsQueryablesAsQueryParameters;
   private final boolean supportsBatchLoading;
   private final boolean supportsCql2InOperator;
   private final boolean supportsAdHocQuery;
@@ -72,6 +73,7 @@ class OgcApiFeaturesDataRepository implements DataRepository {
     this.limit = configuration.getLimit();
     this.srid = configuration.getSrid();
     this.supportsPropertySelection = configuration.isSupportsPropertySelection();
+    this.supportsQueryablesAsQueryParameters = configuration.isSupportsQueryablesAsQueryParameters();
     this.supportsBatchLoading = configuration.isSupportsBatchLoading();
     this.supportsCql2InOperator = configuration.isSupportsCql2InOperator();
     this.supportsAdHocQuery = configuration.isSupportsAdHocQuery();
@@ -122,9 +124,7 @@ class OgcApiFeaturesDataRepository implements DataRepository {
 
     var baseUri = ONE_TEMPLATE.replace("{apiLandingPage}", apiLandingPage).replace("{collectionId}", collectionId)
         .replace("{featureId}", featureId);
-    var uri = queryParams.keySet().stream()
-        .map(key -> key + "=" + encodeValue(queryParams.get(key)))
-        .collect(joining("&", baseUri, ""));
+    var uri = getUri(queryParams, baseUri);
 
     return CLIENT.get().uri(uri)
         .responseSingle((response, content) -> {
@@ -167,10 +167,16 @@ class OgcApiFeaturesDataRepository implements DataRepository {
     var filterExpression = collectionRequest.getFilter();
     if (filterExpression != null) {
       var basePath = String.join(PATH_SEPARATOR, filterExpression.getPath().getSegments());
-      if (filterExpression.getValue() instanceof Map) {
-        ((Map<?, ?>) filterExpression.getValue()).values()
-            .forEach(v -> queryParams.put(basePath, v.toString()));
-      } else if (filterExpression.getValue() instanceof Geometry && supportsIntersects) {
+      if ("equals".equals(filterExpression.getOperator().getType()) && filterExpression.getValue() instanceof Map) {
+        if (supportsQueryablesAsQueryParameters) {
+          ((Map<?, ?>) filterExpression.getValue()).forEach(
+              (key, value) -> queryParams.put(key.toString(), value.toString()));
+        } else {
+          queryParams.put("filter", String.join(" AND ",
+              ((Map<?, ?>) filterExpression.getValue()).entrySet().stream()
+                  .map(entry -> String.format("%s='%s'", entry.getKey(), entry.getValue())).toList()));
+        }
+      } else if ("intersects".equals(filterExpression.getOperator().getType()) && filterExpression.getValue() instanceof Geometry && supportsIntersects) {
         var srid = ((Geometry) filterExpression.getValue()).getSRID();
         var wkt = new WKTWriter().write((Geometry) filterExpression.getValue());
         queryParams.put("filter", String.format("s_intersects(%s,%s)", basePath, wkt));
@@ -190,9 +196,7 @@ class OgcApiFeaturesDataRepository implements DataRepository {
 
     var baseUri =
         COLLECTION_TEMPLATE.replace("{apiLandingPage}", apiLandingPage).replace("{collectionId}", collectionId);
-    var uri = queryParams.keySet().stream()
-        .map(key -> key + "=" + encodeValue(queryParams.get(key)))
-        .collect(joining("&", baseUri, ""));
+    var uri = getUri(queryParams, baseUri);
 
     return CLIENT.get().uri(uri)
         .responseSingle((response, content) -> {
@@ -265,9 +269,7 @@ class OgcApiFeaturesDataRepository implements DataRepository {
 
     var baseUri =
         COLLECTION_TEMPLATE.replace("{apiLandingPage}", apiLandingPage).replace("{collectionId}", collectionId);
-    var uri = queryParams.keySet().stream()
-        .map(key -> key + "=" + encodeValue(queryParams.get(key)))
-        .collect(joining("&", baseUri, ""));
+    var uri = getUri(queryParams, baseUri);
 
     Mono<byte[]> responseContent;
     if (uri.length() <= MAX_URI_LENGTH) {
@@ -313,6 +315,12 @@ class OgcApiFeaturesDataRepository implements DataRepository {
       return ((List<Map<String, Object>>) geojsonFeatureCollection.get(FEATURES)).stream()
           .map(geojsonFeature -> getFeature(batchRequest.getSelectedProperties(), geojsonFeature)).toList();
     }).flatMapMany(Flux::fromIterable);
+  }
+
+  private String getUri(Map<String, String> queryParams, String baseUri) {
+    return queryParams.keySet().stream()
+        .map(key -> key + "=" + encodeValue(queryParams.get(key)))
+        .collect(joining("&", baseUri, ""));
   }
 
   private String encodeValue(String value) {
