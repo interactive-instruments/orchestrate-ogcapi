@@ -24,6 +24,7 @@ public class OgcApiFeaturesConfiguration {
   private final Model model;
   private final String apiLandingPage;
   private final int limit;
+  private final Integer srid;
   private final boolean supportsPropertySelection;
   private final boolean supportsBatchLoading;
   private final boolean supportsAdHocQuery;
@@ -36,6 +37,7 @@ public class OgcApiFeaturesConfiguration {
     this.model = model;
     this.apiLandingPage = apiLandingPage;
     this.limit = limit;
+    this.srid = 28992; // TODO temporary fix
     this.supportsPropertySelection = supportsPropertySelection;
     this.supportsRelProfiles = supportsRelProfiles;
     var conformsTo = getConformanceDeclaration();

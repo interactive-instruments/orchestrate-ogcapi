@@ -11,6 +11,29 @@ lineageNameMapping:
   objectKey: identificatie
   objectType: type
 
+sourceRelations:
+#  - sourceType: bgt:pand
+#    property:
+#      name: isGerelateerdAan2
+#      target: bag:pand
+#      cardinality: 0..1
+#      inverseName: gerelateerdBgtPand
+#      inverseCardinality: 0..1
+#      keyMapping:
+#        identificatie: isGerelateerdAan
+  - sourceType: bgt:pand
+    property:
+      name: gerelateerdBagPandGeo
+      target: bag:pand
+      cardinality: 0..1
+      inverseName: gerelateerdBgtPandGeo
+      inverseCardinality: 0..1
+      filterMappings:
+        - property: geometrie
+          operator:
+            type: intersects
+          sourcePath: geometrie2dGrondvlak
+
 objectTypeMappings:
   Adres:
     sourceRoot: bag:nummeraanduiding
@@ -94,16 +117,16 @@ objectTypeMappings:
           path: identificatie
       bouwjaar:
         pathMappings:
-          path: isGerelateerdAan/oorspronkelijkBouwjaar
+          path: gerelateerdBagPandGeo/oorspronkelijkBouwjaar
       bovenaanzichtgeometrie:
         pathMappings:
-          path: isGerelateerdAan/geometrie
+          path: gerelateerdBagPandGeo/geometrie
       maaiveldgeometrie:
         pathMappings:
           path: geometrie
       heeftAlsAdres:
         pathMappings:
-          path: isGerelateerdAan/bevat/heeftAlsHoofdadres
+          path: gerelateerdBagPandGeo/bevat/heeftAlsHoofdadres
       #bevindtZichOpPerceel:
       #  pathMappings:
       #    path: isGerelateerdAan/bevat/heeftAlsHoofdadres/betreftInverse/heeft

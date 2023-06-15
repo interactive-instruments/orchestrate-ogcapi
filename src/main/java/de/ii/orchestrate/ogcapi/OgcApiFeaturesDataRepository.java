@@ -1,6 +1,7 @@
 package de.ii.orchestrate.ogcapi;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+import static java.util.stream.Collectors.joining;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import graphql.com.google.common.collect.ImmutableList;
 import graphql.com.google.common.collect.ImmutableMap;
@@ -8,10 +9,12 @@ import graphql.com.google.common.collect.ImmutableSet;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.dotwebstack.orchestrate.ext.spatial.GeometryType;
 import org.dotwebstack.orchestrate.model.Attribute;
@@ -36,10 +39,10 @@ class OgcApiFeaturesDataRepository implements DataRepository {
   final static HttpClient CLIENT = HttpClient.create().headers(
       h -> h.set(HttpHeaderNames.ACCEPT, "application/geo+json,application/problem+json;q=0.8,application/json;q=0.7"));
 
-  final static String ONE_TEMPLATE = "{apiLandingPage}/collections/{collectionId}/items/{featureId}";
+  final static String ONE_TEMPLATE = "{apiLandingPage}/collections/{collectionId}/items/{featureId}?";
 
   // limit to 10 features for now until there is paging support
-  final static String COLLECTION_TEMPLATE = "{apiLandingPage}/collections/{collectionId}/items?limit={limit}";
+  final static String COLLECTION_TEMPLATE = "{apiLandingPage}/collections/{collectionId}/items?";
   final static String SEARCH_TEMPLATE = "{apiLandingPage}/search";
 
   final static ObjectMapper MAPPER = new ObjectMapper();
@@ -54,6 +57,7 @@ class OgcApiFeaturesDataRepository implements DataRepository {
 
   private final String apiLandingPage;
   private final int limit;
+  private final Integer srid;
   private final boolean supportsPropertySelection;
   private final boolean supportsBatchLoading;
   private final boolean supportsCql2InOperator;
@@ -66,6 +70,7 @@ class OgcApiFeaturesDataRepository implements DataRepository {
   public OgcApiFeaturesDataRepository(OgcApiFeaturesConfiguration configuration) {
     this.apiLandingPage = configuration.getApiLandingPage();
     this.limit = configuration.getLimit();
+    this.srid = configuration.getSrid();
     this.supportsPropertySelection = configuration.isSupportsPropertySelection();
     this.supportsBatchLoading = configuration.isSupportsBatchLoading();
     this.supportsCql2InOperator = configuration.isSupportsCql2InOperator();
@@ -103,11 +108,23 @@ class OgcApiFeaturesDataRepository implements DataRepository {
           String.format("Invalid object request: no object id has been provided. Request: %s", objectRequest));
     }
 
-    var properties = supportsPropertySelection ? "?properties=" +
-        getPropertiesParameterString(objectType, objectRequest.getSelectedProperties(), ImmutableList.of()) : "";
-    var profile = supportsRelProfiles ? (properties.isEmpty() ? "?" : "&") + "profile=rel-as-key" : "";
-    var uri = ONE_TEMPLATE.replace("{apiLandingPage}", apiLandingPage).replace("{collectionId}", collectionId)
-        .replace("{featureId}", featureId) + properties + profile;
+    Map<String, String> queryParams = new HashMap<>();
+    if (srid != null) {
+      queryParams.put("crs", getSridUri(srid));
+    }
+    if (supportsPropertySelection) {
+      queryParams.put("properties",
+          getPropertiesParameterString(objectType, objectRequest.getSelectedProperties(), ImmutableList.of()));
+    }
+    if (supportsRelProfiles) {
+      queryParams.put("profile", "rel-as-key");
+    }
+
+    var baseUri = ONE_TEMPLATE.replace("{apiLandingPage}", apiLandingPage).replace("{collectionId}", collectionId)
+        .replace("{featureId}", featureId);
+    var uri = queryParams.keySet().stream()
+        .map(key -> key + "=" + encodeValue(queryParams.get(key)))
+        .collect(joining("&", baseUri, ""));
 
     return CLIENT.get().uri(uri)
         .responseSingle((response, content) -> {
@@ -143,26 +160,39 @@ class OgcApiFeaturesDataRepository implements DataRepository {
           String.format("Invalid collection request: object type is not present in the model. Request: %s",
               collectionRequest));
     }
+    Map<String, String> queryParams = new HashMap<>();
+    if (srid != null) {
+      queryParams.put("crs", getSridUri(srid));
+    }
     var filterExpression = collectionRequest.getFilter();
-    var filter = "";
     if (filterExpression != null) {
       var basePath = String.join(PATH_SEPARATOR, filterExpression.getPath().getSegments());
       if (filterExpression.getValue() instanceof Map) {
-        filter = ((Map<?, ?>) filterExpression.getValue()).values().stream()
-            .map(v -> String.format("&%s=%s", basePath, v))
-            .collect(Collectors.joining());
-      } else if (filterExpression.getValue() instanceof Geometry) {
+        ((Map<?, ?>) filterExpression.getValue()).values()
+            .forEach(v -> queryParams.put(basePath, v.toString()));
+      } else if (filterExpression.getValue() instanceof Geometry && supportsIntersects) {
         var srid = ((Geometry) filterExpression.getValue()).getSRID();
         var wkt = new WKTWriter().write((Geometry) filterExpression.getValue());
-        filter = String.format("&filter=s_intersects(%s,%s)%s", basePath, wkt,
-            srid != 4326 ? "&filter-crs=http://www.opengis.net/def/crs/EPSG/0/" + srid : "");
+        queryParams.put("filter", String.format("s_intersects(%s,%s)", basePath, wkt));
+        if (srid != 4326) {
+          queryParams.put("filter-crs", getSridUri(srid));
+        }
       }
     }
-    var properties = supportsPropertySelection ? String.format("&properties=%s",
-        getPropertiesParameterString(objectType, collectionRequest.getSelectedProperties(), ImmutableList.of())) : "";
-    var profile = supportsRelProfiles ? "&profile=rel-as-key" : "";
-    var uri = COLLECTION_TEMPLATE.replace("{apiLandingPage}", apiLandingPage).replace("{collectionId}", collectionId)
-        .replace("{limit}", String.valueOf(limit)) + filter + properties + profile;
+    if (supportsPropertySelection) {
+      queryParams.put("properties",
+          getPropertiesParameterString(objectType, collectionRequest.getSelectedProperties(), ImmutableList.of()));
+    }
+    if (supportsRelProfiles) {
+      queryParams.put("profile", "rel-as-key");
+    }
+    queryParams.put("limit", String.valueOf(limit));
+
+    var baseUri =
+        COLLECTION_TEMPLATE.replace("{apiLandingPage}", apiLandingPage).replace("{collectionId}", collectionId);
+    var uri = queryParams.keySet().stream()
+        .map(key -> key + "=" + encodeValue(queryParams.get(key)))
+        .collect(joining("&", baseUri, ""));
 
     return CLIENT.get().uri(uri)
         .responseSingle((response, content) -> {
@@ -206,22 +236,38 @@ class OgcApiFeaturesDataRepository implements DataRepository {
           String.format("Invalid batch request: object type has no id property. Request: %s", batchRequest));
     }
 
-    var propertyList = supportsPropertySelection ?
-        getPropertiesParameter(objectType, batchRequest.getSelectedProperties(), ImmutableList.of()) :
-        ImmutableList.<String>of();
-    if (!propertyList.isEmpty() && !propertyList.contains(idProperty)) {
-      propertyList = Stream.concat(propertyList.stream(), Stream.of(idProperty)).toList();
-    }
-    var properties = propertyList.isEmpty() ? "" : String.format("&properties=%s", String.join(",", propertyList));
     var objectKeys =
         batchRequest.getObjectKeys().stream().map(id -> (String) id.get(idProperty)).filter(Objects::nonNull).toList();
-    var filter = supportsCql2InOperator ?
-        String.format("&filter=%s%%20in%%20('%s')", idProperty, String.join("','", objectKeys)) :
-        String.format("&filter=%s", String.join("%%20OR%%20",
-            objectKeys.stream().map(key -> String.format("%s='%s'", idProperty, key)).toList()));
-    var profile = supportsRelProfiles ? "&profile=rel-as-key" : "";
-    var uri = COLLECTION_TEMPLATE.replace("{apiLandingPage}", apiLandingPage).replace("{collectionId}", collectionId)
-        .replace("{limit}", String.valueOf(objectKeys.size())) + filter + properties + profile;
+
+    Map<String, String> queryParams = new HashMap<>();
+    if (srid != null) {
+      queryParams.put("crs", getSridUri(srid));
+    }
+
+    List<String> propertyList = ImmutableList.of();
+    if (supportsPropertySelection) {
+      propertyList = getPropertiesParameter(objectType, batchRequest.getSelectedProperties(), ImmutableList.of());
+      if (!propertyList.isEmpty() && !propertyList.contains(idProperty)) {
+        propertyList = Stream.concat(propertyList.stream(), Stream.of(idProperty)).toList();
+      }
+      queryParams.put("properties", String.join(",", propertyList));
+    }
+    if (supportsRelProfiles) {
+      queryParams.put("profile", "rel-as-key");
+    }
+    if (supportsCql2InOperator) {
+      queryParams.put("filter", String.format("%s%%20in%%20('%s')", idProperty, String.join("','", objectKeys)));
+    } else {
+      queryParams.put("filter", String.join("%%20OR%%20",
+          objectKeys.stream().map(key -> String.format("%s='%s'", idProperty, key)).toList()));
+    }
+    queryParams.put("limit", String.valueOf(objectKeys.size()));
+
+    var baseUri =
+        COLLECTION_TEMPLATE.replace("{apiLandingPage}", apiLandingPage).replace("{collectionId}", collectionId);
+    var uri = queryParams.keySet().stream()
+        .map(key -> key + "=" + encodeValue(queryParams.get(key)))
+        .collect(joining("&", baseUri, ""));
 
     Mono<byte[]> responseContent;
     if (uri.length() <= MAX_URI_LENGTH) {
@@ -235,7 +281,7 @@ class OgcApiFeaturesDataRepository implements DataRepository {
             return response.status() == HttpResponseStatus.OK ? content.asByteArray() : Mono.empty();
           });
     } else if (supportsAdHocQuery) {
-      properties = propertyList.isEmpty() ? "" :
+      var properties = propertyList.isEmpty() ? "" :
           String.format(", \"properties\": [ \"%s\" ]", String.join("\", \"", propertyList));
       var requestContent =
           String.format(AD_HOC_QUERY_TEMPLATE, collectionId, idProperty, String.join("\", \"", objectKeys), properties);
@@ -269,6 +315,14 @@ class OgcApiFeaturesDataRepository implements DataRepository {
     }).flatMapMany(Flux::fromIterable);
   }
 
+  private String encodeValue(String value) {
+    return URLEncoder.encode(value, StandardCharsets.UTF_8);
+  }
+
+  private String getSridUri(int srid) {
+    return "http://www.opengis.net/def/crs/EPSG/0/" + srid;
+  }
+
   private String getCollectionId(ObjectType objectType) {
     return objectType.getName();
   }
@@ -277,7 +331,7 @@ class OgcApiFeaturesDataRepository implements DataRepository {
     if (objectType.getIdentityProperties().size() != 1) {
       throw new SourceException(
           String.format("Source models using an OGC Web API must have exactly one identity property. Found: %s.",
-              objectType.getIdentityProperties().stream().map(Object::toString).collect(Collectors.joining(", "))));
+              objectType.getIdentityProperties().stream().map(Object::toString).collect(joining(", "))));
     }
 
     return objectType.getIdentityProperties().get(0).getName();
