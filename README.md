@@ -19,7 +19,7 @@ The current implementation depends on certain characteristics that the OGC Web A
 * For an `ObjectTypeRef` property in the source model, the value of property in the GeoJSON encoding must be the identifier if the referenced feature.
   * This implementation supports properties that are declared in the schema with `x-ogc-role: reference`. In that case, the option `supportsRelProfiles` has to be set to `true` in the source configuration.
 * All feature properties that may be used to filter a collection must be declared as a queryable. 
-* The name of each queryable must be the same as the path of the property in the DotWebStack Orchestrate target model.
+* The name of each queryable must be the same as the path of the property in the DotWebStack Orchestrate source model.
 * The API must support the [OGC API Features "Features Filter" conformance class](https://docs.ogc.org/DRAFTS/19-079r1.html#rc_features-filter) and the [OGC Common Query Language "CQL2 Text" conformance class](https://docs.ogc.org/DRAFTS/21-065.html#rc_cql2-text) 
 
 ## Hints
