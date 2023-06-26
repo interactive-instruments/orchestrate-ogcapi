@@ -1,5 +1,6 @@
 package de.ii.orchestrate.ogcapi;
 
+import com.google.auto.service.AutoService;
 import java.util.Map;
 import java.util.Objects;
 import org.dotwebstack.orchestrate.model.Model;
@@ -7,6 +8,7 @@ import org.dotwebstack.orchestrate.source.Source;
 import org.dotwebstack.orchestrate.source.SourceException;
 import org.dotwebstack.orchestrate.source.SourceType;
 
+@AutoService(SourceType.class)
 public class OgcApiFeaturesSourceType implements SourceType {
 
   private static final String SOURCE_TYPE = "ogcapi";
