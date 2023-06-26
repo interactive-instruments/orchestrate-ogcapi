@@ -14,7 +14,11 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <orchestrate.version>0.0.1-SNAPSHOT</orchestrate.version>
-        <lombok.version>1.18.26</lombok.version>
+        <orchestrate-mim.version>0.0.1-SNAPSHOT</orchestrate-mim.version>
+        <lombok.version>1.18.28</lombok.version>
+        <junit.version>5.9.3</junit.version>
+        <assertj.version>3.24.2</assertj.version>
+        <mockito.version>5.4.0</mockito.version>
     </properties>
 
     <profiles>
@@ -64,10 +68,52 @@
             <version>1.1.1</version>
         </dependency>
         <dependency>
+            <groupId>org.dotwebstack.orchestrate</groupId>
+            <artifactId>orchestrate-mim</artifactId>
+            <version>${orchestrate-mim.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <version>${lombok.version}</version>
             <scope>provided</scope>
+        </dependency>
+        <!-- Test dependencies -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-params</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>${assertj.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>${mockito.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <version>${mockito.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-test</artifactId>
+            <version>3.5.7</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

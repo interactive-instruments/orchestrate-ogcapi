@@ -1,14 +1,14 @@
 package de.ii.orchestrate.ogcapi;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import java.io.IOException;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NonNull;
 import org.dotwebstack.orchestrate.model.Model;
 import org.dotwebstack.orchestrate.source.SourceException;
 import reactor.netty.http.client.HttpClient;
@@ -37,7 +37,8 @@ public class OgcApiFeaturesConfiguration {
   private final boolean supportsIntersects;
 
   @Builder(toBuilder = true)
-  public OgcApiFeaturesConfiguration(Model model, String apiLandingPage, int limit, boolean supportsPropertySelection, boolean supportsRelProfiles) {
+  public OgcApiFeaturesConfiguration(@NonNull Model model, @NonNull String apiLandingPage, int limit,
+                                     boolean supportsPropertySelection, boolean supportsRelProfiles) {
     this.model = model;
     this.apiLandingPage = apiLandingPage;
     this.limit = limit;
@@ -72,7 +73,7 @@ public class OgcApiFeaturesConfiguration {
   }
 
 
-  private void validateCapabilities(Model model, List<String> conformsTo) {
+  private static void validateCapabilities(@NonNull Model model, @NonNull List<String> conformsTo) {
     if (conformsTo.stream().noneMatch(
         uri -> uri.equals("http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core"))) {
       throw new SourceException("APIs must support the OGC API Feature 'Core' conformance class.");
@@ -83,7 +84,8 @@ public class OgcApiFeaturesConfiguration {
     }
     if (conformsTo.stream().noneMatch(
         uri -> uri.equals("http://www.opengis.net/spec/ogcapi-features-2/1.0/conf/crs"))) {
-      throw new SourceException("APIs must support the OGC API Feature 'Coordinate Reference Systems by Reference' conformance class.");
+      throw new SourceException(
+          "APIs must support the OGC API Feature 'Coordinate Reference Systems by Reference' conformance class.");
     }
     // The following are drafts, so we accept any version number (and hope that the implementation is up-to-date).
     if (conformsTo.stream().noneMatch(
@@ -91,21 +93,34 @@ public class OgcApiFeaturesConfiguration {
       throw new SourceException("APIs must support the OGC API Feature 'CQL2 Text' conformance class.");
     }
     if (conformsTo.stream().noneMatch(
-        uri -> uri.startsWith("http://www.opengis.net/spec/ogcapi-features-3/") && uri.endsWith("/conf/features-filter"))) {
+        uri -> uri.startsWith("http://www.opengis.net/spec/ogcapi-features-3/") &&
+            uri.endsWith("/conf/features-filter"))) {
       throw new SourceException("APIs must support the OGC API Feature 'Features Filter' conformance class.");
     }
   }
 
   private List<String> getConformanceDeclaration() {
     var uri = CONFORMANCE_DECLARATION_TEMPLATE.replace("{apiLandingPage}", apiLandingPage);
-    var conformanceDeclarationAsString = CLIENT.get()
+    return CLIENT.get()
         .uri(uri)
-        .responseContent().aggregate().asString().block();
-    try {
-      var declaration = MAPPER.readValue(conformanceDeclarationAsString, ConformanceDeclaration.class);
-      return declaration.getConformsTo();
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
+        .responseSingle((response, content) -> {
+          if (response.status() != HttpResponseStatus.OK) {
+            throw new SourceException(
+                String.format("Conformance Declaration request returned a status different than 200: %d. URI: %s",
+                    response.status().code(), uri));
+          }
+          return content.asByteArray();
+        })
+        .map(conformanceDeclarationAsByteArray -> {
+          ConformanceDeclaration conformanceDeclaration;
+          try {
+            conformanceDeclaration = MAPPER.readValue(conformanceDeclarationAsByteArray, ConformanceDeclaration.class);
+          } catch (IOException e) {
+            throw new SourceException(
+                "APIs must support the OGC API Conformance Declaration resource. Problem found: " + e.getMessage());
+          }
+          return conformanceDeclaration.getConformsTo();
+        })
+        .block();
   }
 }
