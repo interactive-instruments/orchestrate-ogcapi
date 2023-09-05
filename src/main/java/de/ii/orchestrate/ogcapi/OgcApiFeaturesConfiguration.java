@@ -9,8 +9,8 @@ import java.util.List;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NonNull;
-import org.dotwebstack.orchestrate.model.Model;
-import org.dotwebstack.orchestrate.source.SourceException;
+import nl.geostandaarden.imx.orchestrate.model.Model;
+import nl.geostandaarden.imx.orchestrate.source.SourceException;
 import reactor.netty.http.client.HttpClient;
 
 @Getter

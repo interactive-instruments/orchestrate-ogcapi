@@ -1,7 +1,7 @@
 package de.ii.orchestrate.ogcapi;
 
-import org.dotwebstack.orchestrate.source.DataRepository;
-import org.dotwebstack.orchestrate.source.Source;
+import nl.geostandaarden.imx.orchestrate.source.DataRepository;
+import nl.geostandaarden.imx.orchestrate.source.Source;
 
 public class OgcApiFeaturesSource implements Source {
 

@@ -3,10 +3,10 @@ package de.ii.orchestrate.ogcapi;
 import com.google.auto.service.AutoService;
 import java.util.Map;
 import java.util.Objects;
-import org.dotwebstack.orchestrate.model.Model;
-import org.dotwebstack.orchestrate.source.Source;
-import org.dotwebstack.orchestrate.source.SourceException;
-import org.dotwebstack.orchestrate.source.SourceType;
+import nl.geostandaarden.imx.orchestrate.model.Model;
+import nl.geostandaarden.imx.orchestrate.source.Source;
+import nl.geostandaarden.imx.orchestrate.source.SourceException;
+import nl.geostandaarden.imx.orchestrate.source.SourceType;
 
 @AutoService(SourceType.class)
 public class OgcApiFeaturesSourceType implements SourceType {

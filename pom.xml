@@ -43,22 +43,22 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.dotwebstack.orchestrate</groupId>
+            <groupId>nl.geostandaarden.imx.orchestrate</groupId>
             <artifactId>orchestrate-gateway</artifactId>
             <version>${orchestrate.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.dotwebstack.orchestrate</groupId>
+            <groupId>nl.geostandaarden.imx.orchestrate</groupId>
             <artifactId>orchestrate-model</artifactId>
             <version>${orchestrate.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.dotwebstack.orchestrate</groupId>
+            <groupId>nl.geostandaarden.imx.orchestrate</groupId>
             <artifactId>orchestrate-source</artifactId>
             <version>${orchestrate.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.dotwebstack.orchestrate</groupId>
+            <groupId>nl.geostandaarden.imx.orchestrate</groupId>
             <artifactId>orchestrate-ext-spatial</artifactId>
             <version>${orchestrate.version}</version>
         </dependency>
@@ -68,7 +68,7 @@
             <version>1.1.1</version>
         </dependency>
         <dependency>
-            <groupId>org.dotwebstack.orchestrate</groupId>
+            <groupId>nl.geostandaarden.imx.orchestrate.mim</groupId>
             <artifactId>orchestrate-mim</artifactId>
             <version>${orchestrate-mim.version}</version>
         </dependency>
