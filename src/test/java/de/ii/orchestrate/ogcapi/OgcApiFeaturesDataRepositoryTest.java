@@ -1,26 +1,26 @@
 package de.ii.orchestrate.ogcapi;
 
-import static org.dotwebstack.orchestrate.model.Cardinality.INFINITE;
+import static nl.geostandaarden.imx.orchestrate.model.Cardinality.INFINITE;
 
 import graphql.com.google.common.collect.ImmutableMap;
 import graphql.com.google.common.collect.ImmutableSet;
 import java.util.List;
 import java.util.Map;
-import org.dotwebstack.orchestrate.ext.spatial.GeometryType;
-import org.dotwebstack.orchestrate.model.Attribute;
-import org.dotwebstack.orchestrate.model.Cardinality;
-import org.dotwebstack.orchestrate.model.Model;
-import org.dotwebstack.orchestrate.model.ObjectType;
-import org.dotwebstack.orchestrate.model.ObjectTypeRef;
-import org.dotwebstack.orchestrate.model.Path;
-import org.dotwebstack.orchestrate.model.Relation;
-import org.dotwebstack.orchestrate.model.filters.EqualsOperatorType;
-import org.dotwebstack.orchestrate.model.filters.FilterExpression;
-import org.dotwebstack.orchestrate.model.types.ScalarTypes;
-import org.dotwebstack.orchestrate.source.BatchRequest;
-import org.dotwebstack.orchestrate.source.CollectionRequest;
-import org.dotwebstack.orchestrate.source.ObjectRequest;
-import org.dotwebstack.orchestrate.source.SelectedProperty;
+import nl.geostandaarden.imx.orchestrate.ext.spatial.GeometryType;
+import nl.geostandaarden.imx.orchestrate.model.Attribute;
+import nl.geostandaarden.imx.orchestrate.model.Cardinality;
+import nl.geostandaarden.imx.orchestrate.model.Model;
+import nl.geostandaarden.imx.orchestrate.model.ObjectType;
+import nl.geostandaarden.imx.orchestrate.model.ObjectTypeRef;
+import nl.geostandaarden.imx.orchestrate.model.Path;
+import nl.geostandaarden.imx.orchestrate.model.Relation;
+import nl.geostandaarden.imx.orchestrate.model.filters.EqualsOperatorType;
+import nl.geostandaarden.imx.orchestrate.model.filters.FilterExpression;
+import nl.geostandaarden.imx.orchestrate.model.types.ScalarTypes;
+import nl.geostandaarden.imx.orchestrate.source.BatchRequest;
+import nl.geostandaarden.imx.orchestrate.source.CollectionRequest;
+import nl.geostandaarden.imx.orchestrate.source.ObjectRequest;
+import nl.geostandaarden.imx.orchestrate.source.SelectedProperty;
 import org.junit.jupiter.api.Test;
 import reactor.test.StepVerifier;
 

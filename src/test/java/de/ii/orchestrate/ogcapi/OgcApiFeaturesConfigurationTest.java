@@ -3,7 +3,7 @@ package de.ii.orchestrate.ogcapi;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import org.dotwebstack.orchestrate.model.Model;
+import nl.geostandaarden.imx.orchestrate.model.Model;
 import org.junit.jupiter.api.Test;
 
 public class OgcApiFeaturesConfigurationTest {
